@@ -129,7 +129,7 @@ with open('farm_config.json', 'r') as fp:
 for acc in j['workers']:
     acc['account'] = acc['username']
     acc.pop('username')
-    acc['platform'] = 2
+    acc['platform'] = 4
     acc['channel'] = 1
     accounts.append(acc)
 

@@ -51,7 +51,7 @@ TResponse = TypeVar('TResponse', bound=ResponseBase, covariant=True)
 class apiclient(Container["apiclient"]):
     server_time: int = 0
     viewer_id: int = 0
-    servers: list = ['https://l3-prod-all-gs-gzlj.bilibiligame.net/']
+    servers: list = ['https://l3-prod-uo-gs-gzlj.bilibiligame.net/']
     active_server: int = 0
     _requestid: str = ''
     _sessionid: str=  ''
@@ -59,7 +59,7 @@ class apiclient(Container["apiclient"]):
         super().__init__()
         self._headers = {}
         platform = account['platform']
-        if platform == 2:
+        if platform == 4:
             for key in DEFAULT_HEADERS.keys():
                 self._headers[key] = DEFAULT_HEADERS[key]
         else:
@@ -134,17 +134,17 @@ class apiclient(Container["apiclient"]):
 
         response1 = apiclient._no_null_key(response0)
 
-        # with open('req.log', 'a') as fp:
-        #     fp.write(json.dumps(response0))
-        #     fp.write("\n-------\n")
-        #     fp.write(json.dumps(response1))
+        with open('req.log', 'a') as fp:
+             fp.write(json.dumps(response0))
+             fp.write("\n-------\n")
+             fp.write(json.dumps(response1))
 
         response: Response[TResponse] = Response[cls].parse_obj(response1)
 
-        # with open('req.log', 'a') as fp:
-           # fp.write(f'{self.name} requested {request.__class__.__name__} at /{request.url}\n')
-           # fp.write(json.dumps(json.loads(request.json(by_alias=True)), indent=4, ensure_ascii=False) + '\n')
-           # fp.write(json.dumps(json.loads(response.json(by_alias=True)), indent=4, ensure_ascii=False) + '\n')
+        with open('req.log', 'a') as fp:
+            fp.write(f'{self.name} requested {request.__class__.__name__} at /{request.url}\n')
+            fp.write(json.dumps(json.loads(request.json(by_alias=True)), indent=4, ensure_ascii=False) + '\n')
+            fp.write(json.dumps(json.loads(response.json(by_alias=True)), indent=4, ensure_ascii=False) + '\n')
 
         if response.data_headers.servertime:
             self.server_time = response.data_headers.servertime

@@ -145,7 +145,7 @@ class Account(ModuleManager):
             'account': self.data.username,
             'password': self.data.password,
             'channel': 1000,
-            'platform': 1
+            'platform': 4
         })
         return client
 
@@ -154,7 +154,7 @@ class Account(ModuleManager):
             'account': self.data.username,
             'password': self.data.password,
             'channel': 1,
-            'platform': 2
+            'platform': 4
         })
         return client
 
