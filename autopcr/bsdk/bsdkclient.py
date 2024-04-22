@@ -10,7 +10,7 @@ class bsdkclient:
         acccountinfo = {
             'account': '',
             'password': '',
-            'platform': 2, # indicates android platform
+            'platform': 4, # indicates android platform
             'channel': 1, # indicates bilibili channel
         }
     '''
@@ -24,12 +24,13 @@ class bsdkclient:
         self.errlogger = errlogger
 
     async def login(self):
-        while True:
+        '''while True:
             resp = await login(self.account, self.pwd, self.captchaVerifier)
             if resp['code'] == 0:
                 await self.errlogger("geetest or captcha succeed")
                 break
             await self.errlogger(resp['message'])
-            raise ValueError(resp['message'])
+            raise ValueError(resp['message'])'''
 
-        return resp['uid'], resp['access_key']
+        #return resp['uid'], resp['access_key']
+        return self.account, self.pwd
