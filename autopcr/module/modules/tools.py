@@ -199,9 +199,11 @@ class Arena(Module):
 
         if target_rank:
             target = await self.get_rank_info(client, target_rank)
-            self._log(f"{target.user_name}({target_rank})")
-            defend = await self.get_defend_from_info(target)
             target_info = (await client.get_profile(target.viewer_id)).user_info
+            self._log(f"{target_info.user_name}uid:{target.viewer_id}({target_rank})")
+            self._log(f"jjc({target_info.arena_group})场:{target_info.arena_rank}/pjjc({target_info.grand_arena_group})场:{target_info.grand_arena_rank}")
+            defend = await self.get_defend_from_info(target)
+            #target_info = (await client.get_profile(target.viewer_id)).user_info
         else:
             history = await self.get_arena_history(client)
             if not history:
@@ -210,7 +212,7 @@ class Arena(Module):
             history_detail = await self.get_history_detail(history.log_id, client)
             target = history.opponent_user
 
-            self._log(f"{target.user_name}: {datetime.datetime.fromtimestamp(history.versus_time)} {'刺' if history_detail.is_challenge else '被刺'}")
+            self._log(f"{target.user_name}uid:{target.viewer_id}: {datetime.datetime.fromtimestamp(history.versus_time)} {'刺' if history_detail.is_challenge else '被刺'}")
 
             target_info = (await client.get_profile(target.viewer_id)).user_info
             target_rank = self.get_rank_from_user_info(target_info)
