@@ -518,7 +518,7 @@ async def quest_recommand(bot: HoshinoBot, ev: CQEvent):
     }
     return config
 
-@register_tool("查询jjc前排", "jjc_rank_list")
+@register_tool("查jjc前排", "jjc_rank_list")
 async def jjc_back(bot: HoshinoBot, ev: CQEvent):
     opponent_jjc_list = 2
     try:
@@ -530,7 +530,7 @@ async def jjc_back(bot: HoshinoBot, ev: CQEvent):
     }
     return config
 
-@register_tool("查PJJC前排", "pjjc_rank_list")
+@register_tool("查pjjc前排", "pjjc_rank_list")
 async def pjjc_back(bot: HoshinoBot, ev: CQEvent):
     opponent_pjjc_list = 2
     try:
