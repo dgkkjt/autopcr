@@ -518,6 +518,32 @@ async def quest_recommand(bot: HoshinoBot, ev: CQEvent):
     }
     return config
 
+@register_tool("查询jjc前排", "jjc_rank_list")
+async def jjc_back(bot: HoshinoBot, ev: CQEvent):
+    opponent_jjc_list = 2
+    try:
+        opponent_jjc_list = int(ev.message.extract_plain_text().split(' ')[-1].strip())
+    except:
+        pass
+    config = {
+        "opponent_jjc_list": opponent_jjc_list,
+    }
+    return config
+
+@register_tool("查PJJC前排", "pjjc_rank_list")
+async def pjjc_back(bot: HoshinoBot, ev: CQEvent):
+    opponent_pjjc_list = 2
+    try:
+        opponent_pjjc_list = int(ev.message.extract_plain_text().split(' ')[-1].strip())
+    except:
+        pass
+    config = {
+        "opponent_pjjc_list": opponent_pjjc_list,
+    }
+    return config
+
+
+
 
 # @register_tool("获取导入", "get_library_import_data")
 # async def get_library_import(bot: HoshinoBot, ev: CQEvent):
