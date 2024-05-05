@@ -523,6 +523,7 @@ async def jjc_back(bot: HoshinoBot, ev: CQEvent):
     opponent_jjc_list = 2
     try:
         opponent_jjc_list = int(ev.message.extract_plain_text().split(' ')[-1].strip())
+        opponent_jjc_list += 1
     except:
         pass
     config = {
@@ -535,6 +536,7 @@ async def pjjc_back(bot: HoshinoBot, ev: CQEvent):
     opponent_pjjc_list = 2
     try:
         opponent_pjjc_list = int(ev.message.extract_plain_text().split(' ')[-1].strip())
+        opponent_pjjc_list += 1
     except:
         pass
     config = {
