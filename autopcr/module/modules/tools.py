@@ -126,7 +126,7 @@ class gacha_start(Module):
                 if single_ticket:
                     reward += await client.exec_gacha_aware(target_gacha, 1, eGachaDrawType.Ticket, client.data.get_inventory(db.gacha_single_ticket), 0)
                 else:
-                    if resp.campaign_info.fg10_exec_cnt:
+                    if resp.campaign_info and resp.campaign_info.fg10_exec_cnt:
                         raise AbortError("当前可免费十连，请先自行抽取")
                     reward += await client.exec_gacha_aware(target_gacha, 10, eGachaDrawType.Payment, client.data.jewel.free_jewel + client.data.jewel.jewel, 0)
                 cnt += 1
@@ -137,7 +137,8 @@ class gacha_start(Module):
         finally:
             self._log(f"抽取了{cnt}次{'十连' if not single_ticket else '单抽'}")
             self._log(await client.serlize_gacha_reward(reward))
-            self._log(f"当前pt为{client.data.gacha_point[target_gacha.exchange_id].current_point}")
+            point = client.data.gacha_point[target_gacha.exchange_id].current_point if target_gacha.exchange_id in client.data.gacha_point else 0
+            self._log(f"当前pt为{point}")
 
 @description('查看会战支援角色的详细数据，拒绝内鬼！')
 @name('会战支援数据')
