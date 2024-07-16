@@ -26,9 +26,11 @@ DEFAULT_HEADERS = {
     'LOCALE': 'CN',
     'PLATFORM-OS-VERSION': 'Android OS 5.1.1 / API-22 (LMY48Z/rel.se.infra.20200612.100533)',
     'REGION-CODE': '',
-    'RES-KEY': 'ab00a0a6dd915a052a2ef7fd649083e5',
+    'RES-KEY': 'd145b29050641dac2f8b19df0afe0e59',
     'RES-VER': '10002200',
-    'SHORT-UDID': '0'
+    'PLATFORM': '2',
+    'SHORT-UDID': '0',
+    "Connection": "Keep-Alive"
 }
 
 IOS_HEADERS = {
@@ -55,7 +57,7 @@ IOS_HEADERS = {
 
 
 def refresh_headers(version: str = None):
-    default_ver = '6.2.0'
+    default_ver = '7.7.1'
     if version is not None:
         with open(os.path.join(CACHE_DIR, 'version.txt'), 'w', encoding='utf-8') as f:
             f.write(version)

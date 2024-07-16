@@ -22,7 +22,7 @@ class sessionmgr(Component[apiclient]):
         self.cacheFile = os.path.join(self.cacheDir, hashlib.md5(account['account'].encode('utf-8')).hexdigest())
 
     def register_to(self, container: apiclient):
-        container._headers['PLATFORM'] = str(self._account['platform'])
+        #container._headers['PLATFORM'] = str(self._account['platform'])
         container._headers['PLATFORM-ID'] = str(self._account['platform'])
         container._headers['CHANNEL-ID'] = str(self._account['channel'])
         return super().register_to(container)
@@ -89,7 +89,8 @@ class sessionmgr(Component[apiclient]):
                 self._sdkaccount = json.load(fp)
         while True:
             try:
-                self._container.servers = [f'http://{server}'.replace('\t', '') for server in (await next.request(SourceIniIndexRequest())).server]
+                # self._container.servers = [f'http://{server}'.replace('\t', '') for server in (await next.request(SourceIniIndexRequest())).server]
+                self._container.servers = [f'https://l3-prod-uo-gs-gzlj.bilibiligame.net/']
                 self._container.active_server = 0
                 manifest = await next.request(SourceIniGetMaintenanceStatusRequest())
                 self._container._headers['MANIFEST-VER'] = manifest.required_manifest_ver
