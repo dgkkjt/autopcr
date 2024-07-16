@@ -1,6 +1,6 @@
-
 from .bsgamesdk import login
-from .validator import autoValidator, manualValidator
+from .validator import autoValidator
+from ..model.error import PanicError
 
 async def _defaultLogger(msg):
     print(msg)
@@ -31,6 +31,5 @@ class bsdkclient:
                 break
             await self.errlogger(resp['message'])
             raise ValueError(resp['message'])'''
-
         #return resp['uid'], resp['access_key']
         return self.account, self.pwd
