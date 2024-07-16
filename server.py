@@ -142,7 +142,7 @@ class HoshinoEvent(BotEvent):
         await self.bot.finish(self.ev, msg)
 
     async def is_admin(self) -> bool:
-        return priv.check_priv(self.ev, priv.ADMIN)
+        return priv.check_priv(self.ev, priv.SUPERUSER)
 
 def wrap_hoshino_event(func):
     async def wrapper(bot: HoshinoBot, ev: CQEvent, *args, **kwargs):
