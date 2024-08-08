@@ -6,7 +6,7 @@ from math import log
 
 from ..model.custom import PLACEHOLDER, ArenaQueryType, ArenaQueryUnit, ArenaRegion, ArenaQueryResult, ArenaQueryResponse
 from . import aiorequests 
-
+from hoshino.modules.priconne.arena.pcrdapi import callPcrd
 try:
     from hoshino.modules.priconne.arena.arena import curpath as CACHE_DIR
 except:
@@ -118,13 +118,14 @@ class ArenaQuery:
         async with self.querylock:
             await asyncio.sleep(1)
             try:
-                resp = await aiorequests.post(
+                '''resp = await aiorequests.post(
                     self.__get_query_ip(),
                     headers=self.__get_query_header(),
                     json=self.__get_query_payload(units, region),
                     timeout=5,
-                )
-                res = await resp.json()
+                )'''
+                #res = await resp.json()
+                res = await callPcrd(units, region)
                 res = ArenaQueryResponse.parse_obj(res)
                 if res.code:
                     raise ValueError(f'服务器报错：返回值{res.code}')
