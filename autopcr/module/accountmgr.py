@@ -8,7 +8,7 @@ from .modulemgr import ModuleManager, TaskResult, ModuleResult
 from ..sdk.sdkclients import create
 import os, re, shutil
 from typing import Any, Dict, Iterator, List, Union
-from ..constants import CONFIG_PATH, OLD_CONFIG_PATH, RESULT_DIR, QSDK, CHANNEL_OPTION
+from ..constants import CONFIG_PATH, OLD_CONFIG_PATH, RESULT_DIR, QSDK, BSDK, CHANNEL_OPTION
 from asyncio import Lock
 import json
 from copy import deepcopy
