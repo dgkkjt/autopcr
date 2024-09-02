@@ -119,6 +119,7 @@ class ArenaQuery:
         async with self.querylock:
             await asyncio.sleep(1)
             try:
+
                 data = ArenaQuery._get_query_payload(units, region)
                 data['_sign'] = pcrdapi.sign(ArenaQuery._dumps(data), data['nonce'])
                 resp = await aiorequests.post(
