@@ -572,13 +572,20 @@ async def find_xinsui(botev: BotEvent):
 async def jjc_back(botev: BotEvent):
     msg = await botev.message()
     opponent_jjc_rank = -1
+    opponent_jjc_attack_team_id = 1
     try:
         opponent_jjc_rank = int(msg[0])
         del msg[0]
     except:
         pass
+    try:
+        opponent_jjc_attack_team_id = int(msg[0])
+        del msg[0]
+    except:
+        pass
     config = {
         "opponent_jjc_rank": opponent_jjc_rank,
+        "opponent_jjc_attack_team_id": opponent_jjc_attack_team_id,
     }
     return config
 
@@ -586,13 +593,20 @@ async def jjc_back(botev: BotEvent):
 async def pjjc_back(botev: BotEvent):
     msg = await botev.message()
     opponent_pjjc_rank = -1
+    opponent_pjjc_attack_team_id = 1
     try:
         opponent_pjjc_rank = int(msg[0])
         del msg[0]
     except:
         pass
+    try:
+        opponent_pjjc_attack_team_id = int(msg[0])
+        del msg[0]
+    except:
+        pass
     config = {
         "opponent_pjjc_rank": opponent_pjjc_rank,
+        "opponent_pjjc_attack_team_id": opponent_pjjc_attack_team_id,
     }
     return config
 
@@ -734,6 +748,9 @@ async def quest_recommand(botev: BotEvent):
     }
     return config
 
+@register_tool("查缺角色", "missing_unit")
+async def find_missing_unit(botev: BotEvent):
+    return {}
 
 # @register_tool("获取导入", "get_library_import_data")
 # async def get_library_import(botev: BotEvent):
