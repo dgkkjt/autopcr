@@ -145,7 +145,7 @@ class HoshinoEvent(BotEvent):
         await self.bot.finish(self.ev, msg)
 
     async def is_admin(self) -> bool:
-        return priv.check_priv(self.ev, priv.ADMIN)
+        return priv.check_priv(self.ev, priv.SUPERUSER)
 
     async def is_super_admin(self) -> bool:
         return priv.check_priv(self.ev, priv.SU)
