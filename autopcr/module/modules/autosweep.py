@@ -208,6 +208,7 @@ class smart_hard_sweep(simple_demand_sweep_base):
         return 3
 
 @conditional_execution1("shiori_sweep_run_time", ["无庆典"])
+@conditional_not_execution1("hard_sweep_not_run_time", ["n3", "n4及以上"])
 @singlechoice('shiori_sweep_consider_unit_order', "刷取顺序", "缺口少优先", ["缺口少优先", "缺口大优先"])
 @description('根据记忆碎片缺口刷外传图')
 @name('智能刷外传图')
