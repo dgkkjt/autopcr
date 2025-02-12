@@ -11,7 +11,7 @@ from ..core.sdkclient import account, platform
 from .modulemgr import ModuleManager, TaskResult, ModuleResult, eResultStatus, TaskResultInfo, ModuleResultInfo, ResultInfo
 import os, re, shutil
 from typing import Any, Dict, Iterator, List, Tuple, Union
-from ..constants import CLAN_BATTLE_FORBID_PATH, CONFIG_PATH, OLD_CONFIG_PATH, RESULT_DIR, BSDK, CHANNEL_OPTION, SUPERUSER
+from ..constants import CLAN_BATTLE_FORBID_PATH, CONFIG_PATH, OLD_CONFIG_PATH, RESULT_DIR, QSDK, BSDK, CHANNEL_OPTION, SUPERUSER
 from asyncio import Lock
 import json
 from copy import deepcopy
@@ -36,7 +36,7 @@ class UserDisabledException(Forbidden):
 class AccountData:
     username: str = ""
     password: str = ""
-    channel: str = BSDK
+    channel: str = QSDK
     config: Dict[str, Any] = field(default_factory=dict)
     daily_result: List[TaskResultInfo] = field(default_factory=list)
     single_result: Dict[str, List[ModuleResultInfo]] = field(default_factory=dict)

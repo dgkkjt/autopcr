@@ -153,3 +153,13 @@ def conditional_not_execution(key: str, default, desc: str = "不执行条件", 
 
     return multichoice(key=key, desc=desc, default=default, candidates=["n2", "n3", "n4及以上", "h2", "h3及以上", "vh2", "vh3及以上"], do_check = do_check, check = check)
 
+def conditional_not_execution1(key: str, default, desc: str = "不执行条件", check: bool = True):
+    async def do_check(self, client: pcrclient) -> Tuple[bool, str]:
+        run_time = self.get_value()
+        hit = [campaign for campaign in run_time if client.data.is_campaign(campaign)]
+        if hit:
+            return False, "今日" + ','.join(hit) + "，不执行"
+        return True, ""
+
+    return multichoice(key=key, desc=desc, default=default, candidates=["n2", "n3", "n4及以上"], do_check = do_check, check = check)
+
