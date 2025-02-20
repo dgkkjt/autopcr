@@ -269,6 +269,7 @@ unique_equip_2_pure_memory_id = [
         112301, # 魔栞
 ]
 @conditional_execution1("very_hard_sweep_run_time", ["vh庆典"])
+@conditional_not_execution1("vh_sweep_not_run_time", ["n3", "n4及以上"])
 @description('储备专二需求的150碎片，包括' + ','.join(db.get_unit_name(unit_id) for unit_id in unique_equip_2_pure_memory_id))
 @name('专二纯净碎片储备')
 @default(False)
@@ -300,7 +301,6 @@ class mirai_very_hard_sweep(simple_demand_sweep_base):
         return 5 if db.is_shiori_quest(quest_id) else 3
 
 @singlechoice("vh_sweep_campaign_times", "庆典次数", 3, [0, 3, 6])
-@conditional_not_execution1("vh_sweep_not_run_time", ["n3", "n4及以上"])
 @singlechoice("vh_sweep_times", "非庆典次数", 3, [0, 3, 6])
 @description('根据纯净碎片缺口智能刷vh图')
 @name('智能刷very hard图')
