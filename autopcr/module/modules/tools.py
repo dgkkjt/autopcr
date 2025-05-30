@@ -224,7 +224,7 @@ class missing_emblem(Module):
             self._log("全称号玩家！你竟然没有缺少的称号！")
         else:
             self._log(f"缺少{len(missing_emblem)}个称号")
-            self._log('\n'.join(db.emblem_data[id].emblem_name for id in missing_emblem))
+            self._log('\n'.join(f"{db.emblem_data[id].emblem_name}-{db.emblem_mission_data[db.emblem_data[id].description_mission_id].description if db.emblem_data[id].description_mission_id in db.emblem_mission_data else ''}" for id in missing_emblem))
 
 @description('看看你缺了什么角色')
 @name('查缺角色')
