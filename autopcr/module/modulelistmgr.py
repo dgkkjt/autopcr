@@ -1,5 +1,5 @@
 from typing import Dict, List, Callable, Any
-from .modules import cron_modules, daily_modules, clan_modules, danger_modules, tool_modules, ModuleList, Module, CronModule, planning_modules, unit_modules, table_modules
+from .modules import cron_modules, daily_modules, clan_modules, danger_modules, tool_modules, jjc_modules, ModuleList, Module, CronModule, planning_modules, unit_modules, table_modules
 from .modulemgr import ModuleManager
 
 class ModuleListManager:
@@ -10,6 +10,7 @@ class ModuleListManager:
         tool_modules.key: tool_modules,
         unit_modules.key: unit_modules,
         planning_modules.key: planning_modules,
+        jjc_modules.key: jjc_modules,
         table_modules.key: table_modules,
         clan_modules.key: clan_modules,
         danger_modules.key: danger_modules,

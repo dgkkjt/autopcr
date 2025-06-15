@@ -18,7 +18,7 @@ from .tower import *
 from .tools import *
 from .travel import *
 from .unit import *
-
+from .jjc import *
 @dataclass
 class ModuleList:
     name: str = ""
@@ -95,6 +95,8 @@ daily_modules = ModuleList(
         hatsune_gacha_exchange,
         hatsune_mission_accept2,
 
+        jjc_daily,
+        pjjc_daily,
         unit_equip_enhance_up,
         unit_skill_level_up,
 
@@ -128,12 +130,12 @@ planning_modules = ModuleList(
     '规划',
     'planning',
     [
-        get_library_import_data,
-        get_need_equip,
-        get_normal_quest_recommand,
         get_need_memory,
         get_need_pure_memory,
         get_need_xinsui,
+        get_need_equip,
+        get_normal_quest_recommand,
+        get_library_import_data,
     ],
     hidden_in_batch=True,
 )
@@ -153,13 +155,13 @@ unit_modules = ModuleList(
     '角色',
     'unit',
     [
-        search_unit,
-        master_shop,
-        missing_unit,
         refresh_box,
+        search_unit,
+        unit_set_unique_equip_growth,
+        missing_unit,
+        master_shop,
         unit_promote,
         unit_memory_buy,
-        unit_set_unique_equip_growth,
     ]
 )
 
@@ -192,14 +194,27 @@ tool_modules = ModuleList(
     [
         # cook_pudding,
         half_schedule,
+        ex_equip_info,
+        missing_emblem,
+        clear_my_party,
+        get_clan_support_unit,
+        remove_cb_support,
+        travel_team_view,
         caravan_play,
         caravan_shop_buy,
-        ex_equip_info,
-        travel_team_view,
-        missing_emblem,
-        get_clan_support_unit,
-        clear_my_party,
-        remove_cb_support,
         redeem_unit_swap,
+    ]
+)
+
+jjc_modules = ModuleList(
+    '竞技场',
+    'jjc',
+    [
+        jjc_back,
+        pjjc_back,
+        jjc_info,
+        pjjc_info,
+        pjjc_def_shuffle_team,
+        pjjc_atk_shuffle_team,
     ]
 )
