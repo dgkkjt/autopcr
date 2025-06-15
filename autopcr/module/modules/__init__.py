@@ -216,5 +216,7 @@ jjc_modules = ModuleList(
         pjjc_info,
         pjjc_def_shuffle_team,
         pjjc_atk_shuffle_team,
-    ]
+    ],
+    hidden_in_batch=True,
+    hidden_in_clan=True,
 )
