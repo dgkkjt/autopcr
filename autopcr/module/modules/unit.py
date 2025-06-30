@@ -565,7 +565,7 @@ class unit_set_unique_equip_growth(UnitController):
 
     async def do_task(self, client: pcrclient):
         self.client = client
-        unit_id, unit_name = self.get_config('unit_set_unique_equip_growth_id').split(':')
+        unit_id = self.get_config('unit_set_unique_equip_growth_id')
         self.unit_id = int(unit_id)
         await self.set_unique_growth_unit()
 
