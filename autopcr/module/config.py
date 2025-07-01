@@ -343,8 +343,9 @@ class ConditionalExecution2Config(ConditionalExecutionMixin, MultiChoiceConfig):
 
 
 class ConditionalNotExecutionConfig(ConditionalExecutionMixin, MultiChoiceConfig):
-    def __init__(self, key: str, desc: str = "不执行条件", default=[], check: bool = True):
-        super().__init__(key, desc, default, ['n2', 'n3', 'n4及以上', 'h2', 'h3及以上', 'vh2', 'vh3及以上'])
+    def __init__(self, key: str, desc: str = "不执行条件", default=[], check: bool = True, candidates: list = None):
+        candidates = candidates or ['n2', 'n3', 'n4及以上', 'h2', 'h3及以上', 'vh2', 'vh3及以上']
+        super().__init__(key, desc, default, candidates)
         self.check_enabled = check
     
     async def do_check(self, client: pcrclient) -> Tuple[bool, str]:
@@ -474,3 +475,6 @@ def conditional_execution2(key: str, default=None, desc: str = "执行条件", c
 
 def conditional_not_execution(key: str, default=None, desc: str = "不执行条件", check: bool = True):
     return ConditionalNotExecutionConfig(key, desc, default, check)
+
+def conditional_not_execution1(key: str, default=None, desc: str = "不执行条件", check: bool = True):
+    return ConditionalNotExecutionConfig(key, desc, default, check, candidates=['n2', 'n3', 'n4及以上'])
