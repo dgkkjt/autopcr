@@ -444,11 +444,6 @@ class CaravanGame:
 
         if self.state == eState.IDLE:
 
-            if self.dice_point <= 0:
-                self._log("没有骰子了 -> STOP")
-                self.state = eState.STOP
-                return
-
             if self.spots:
                 self.state = eState.MOVE
                 return
@@ -460,6 +455,11 @@ class CaravanGame:
 
             if self.action_bit_flag & eFlag.IS_PROGRESS_TURN:
                 self.state = eState.TURN_END
+                return
+
+            if self.dice_point <= 0:
+                self._log("没有骰子了 -> STOP")
+                self.state = eState.STOP
                 return
 
             if self.caravan_play_until_shop_empty and self.client.data.get_inventory(self.coin_token) >= self.total_coin:
