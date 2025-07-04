@@ -285,6 +285,8 @@ unique_equip_2_pure_memory_id = [
         111701, # 圣yly
         111601, # 圣诞望
         107501, # 水吃
+        113101, # 水流夏
+        113301, # 水七七香
 ]
 @conditional_execution1("very_hard_sweep_run_time", ["vh庆典"])
 @conditional_not_execution1("vh_sweep_not_run_time", ["n3", "n4及以上"])
