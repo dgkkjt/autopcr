@@ -144,7 +144,9 @@ table_modules = ModuleList(
     '表格',
     'table',
     [
-        get_need_pure_memory_box,
+        get_box_table,
+        get_box_excel,
+        get_need_pure_memory,
     ],
     hidden=True,
     visible_in_batch=True,
@@ -172,7 +174,6 @@ clan_modules = ModuleList(
         unit_promote_batch,
         unit_memory_buy_batch,
         set_my_party,
-        get_box_table,
     ],
     hidden=True,
     visible_in_clan=True,

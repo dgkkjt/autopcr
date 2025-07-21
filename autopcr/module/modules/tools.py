@@ -432,30 +432,30 @@ class get_need_pure_memory(Module):
         msg = {}
         msg = '\n'.join([f'{db.get_inventory_name_san(item[0])}: {"缺少" if item[1] > 0 else "盈余"}{abs(item[1])}片' for item in need_list])
         self._log(msg)
+#lanly版
+# @description('去除六星需求后，专二所需纯净碎片减去库存的结果')
+# @name('获取纯净碎片缺口(表格版)')
+# @notlogin(check_data = True)
+# @default(True)
+# class get_need_pure_memory_box(Module):
+#     async def do_task(self, client: pcrclient):
+#         from .autosweep import unique_equip_2_pure_memory_id
+#         pure_gap = client.data.get_pure_memory_demand_gap()
+#         target = Counter()
+#         need_list = []
+#         header = []
+#         data = {}
+#         for unit in unique_equip_2_pure_memory_id:
+#             kana = db.unit_data[unit].kana
+#             target[kana] += 150
+#             own = -sum(pure_gap[db.unit_to_pure_memory[unit]] if unit in db.unit_to_pure_memory else 0 for unit in db.unit_kana_ids[kana])
+#             need_list.append((unit, target[kana] - own))
+#             unit_name = db.get_unit_name(unit)
+#             header.append(unit_name)
+#             data[unit_name] = target[kana] - own
 
-@description('去除六星需求后，专二所需纯净碎片减去库存的结果')
-@name('获取纯净碎片缺口(表格版)')
-@notlogin(check_data = True)
-@default(True)
-class get_need_pure_memory_box(Module):
-    async def do_task(self, client: pcrclient):
-        from .autosweep import unique_equip_2_pure_memory_id
-        pure_gap = client.data.get_pure_memory_demand_gap()
-        target = Counter()
-        need_list = []
-        header = []
-        data = {}
-        for unit in unique_equip_2_pure_memory_id:
-            kana = db.unit_data[unit].kana
-            target[kana] += 150
-            own = -sum(pure_gap[db.unit_to_pure_memory[unit]] if unit in db.unit_to_pure_memory else 0 for unit in db.unit_kana_ids[kana])
-            need_list.append((unit, target[kana] - own))
-            unit_name = db.get_unit_name(unit)
-            header.append(unit_name)
-            data[unit_name] = target[kana] - own
-
-        self._table_header(header)
-        self._table(data)
+#         self._table_header(header)
+#         self._table(data)
 
 @description('根据每个角色开专、升级至当前最高专所需的心碎减去库存的结果，大心转换成10心碎')
 @name('获取心碎缺口')
