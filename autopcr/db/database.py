@@ -669,7 +669,7 @@ class database():
         with self.dbmgr.session() as db:
             return (
                 StoryDetail.query(db)
-                .where(lambda x: x.story_id >= 4010000 and x.story_id < 4020000)
+                .where(lambda x: x.story_group_id == 4010)
                 .to_list()
             )
 
@@ -1027,6 +1027,14 @@ class database():
             )
 
     @lazy_property
+    def colosseum_schedule_data(self) -> Dict[int, ColosseumScheduleDatum]:
+        with self.dbmgr.session() as db:
+            return (
+                ColosseumScheduleDatum.query(db)
+                .to_dict(lambda x: x.schedule_id, lambda x: x)
+            )
+
+    @lazy_property
     def tower_schedule(self) -> Dict[int, TowerSchedule]:
         with self.dbmgr.session() as db:
             return (
@@ -1182,6 +1190,14 @@ class database():
             return (
                 HatsuneItem.query(db)
                 .to_dict(lambda x: x.event_id, lambda x: x)
+            )
+
+    @lazy_property
+    def wtm_story_data(self) -> Dict[int, WtmStoryDatum]:
+        with self.dbmgr.session() as db:
+            return (
+                WtmStoryDatum.query(db)
+                .to_dict(lambda x: x.sub_story_id, lambda x: x)
             )
 
     @lazy_property
@@ -1358,6 +1374,17 @@ class database():
                 TravelTopEventDrama.query(db)
                 .group_by(lambda x: x.drama_id)
                 .to_dict(lambda x: x.key, lambda x: x.to_list())
+            )
+
+    @lazy_property
+    def travel_round_event_data(self) -> Dict[int, Dict[int, TravelRoundEventDatum]]:
+        with self.dbmgr.session() as db:
+            return (
+                TravelRoundEventDatum.query(db)
+                .group_by(lambda x: x.round_event_id)
+                .to_dict(lambda x: x.key, lambda x: x.to_dict(
+                    lambda x: x.round, lambda x: x
+                ))
             )
 
     @lazy_property
@@ -1678,13 +1705,13 @@ class database():
         half_day = datetime.timedelta(hours = 7)
         n3 = (flow(self.campaign_schedule.values())
                 # .where(lambda x: self.is_normal_quest_campaign(x.id) and x.value >= 6000 and self.is_level_effective_scope_in_campaign(level, x.id)) # TODO change 3000 when stop speed up
-                .where(lambda x: self.is_normal_quest_campaign(x.id) and x.value >= 3000 and self.is_level_effective_scope_in_campaign(level, x.id))
+                .where(lambda x: self.is_normal_quest_campaign(x.id) and x.value >= 6000 and self.is_level_effective_scope_in_campaign(level, x.id))
                 .select(lambda x: (db.parse_time(x.start_time), db.parse_time(x.end_time)))
                 .to_list()
               )
         h3 = (flow(self.campaign_schedule.values())
                 # .where(lambda x: self.is_hard_quest_campaign(x.id) and x.value >= 6000) # TODO change 3000 when stop speed up
-                .where(lambda x: self.is_hard_quest_campaign(x.id) and x.value >= 3000)
+                .where(lambda x: self.is_hard_quest_campaign(x.id) and x.value >= 6000)
                 .select(lambda x: (db.parse_time(x.start_time), db.parse_time(x.end_time)))
                 .to_list()
              )
@@ -1892,7 +1919,7 @@ class database():
 
     def get_unique_equip_level_from_pt(self, equip_slot: int, enhancement_pt: int) -> int:
         histort_level = [star for star, enhancement_data in self.unique_equipment_enhance_data[equip_slot].items() if enhancement_data.total_point <= enhancement_pt]
-        level = max([1] + histort_level)
+        level = max(histort_level) if histort_level else 1
         return level
 
     def get_unique_equip_max_level_from_rank(self, equip_slot: int, rank: int) -> int:
