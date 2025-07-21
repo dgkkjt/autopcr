@@ -1,4 +1,4 @@
-# autopcr
+# autopcr 自用版
 
 [![License](https://img.shields.io/github/license/cc004/autopcr)](LICENSE)
 
