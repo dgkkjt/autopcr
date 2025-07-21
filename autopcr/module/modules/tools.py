@@ -556,7 +556,7 @@ class clear_my_party(Module):
 
 
 
-@description('从指定面板的指定队开始设置。6行重复，标题+5行角色ID	角色名字	角色等级	角色星级')
+@description('从指定面板的指定队开始设置。标题行+若干角色行，如：6-7层\\n102901 偶像 ...')
 @texttype("set_my_party_text", "队伍阵容", "")
 @inttype("party_start_num", "初始队伍", 1, [i for i in range(1, 11)])
 @inttype("tab_start_num", "初始面板", 1, [i for i in range(1, 7)])
@@ -566,9 +566,26 @@ class set_my_party(Module):
         set_my_party_text: str = self.get_config('set_my_party_text')
         tab_number: int = self.get_config('tab_start_num')
         party_number: int = self.get_config('party_start_num') - 1
-        party = set_my_party_text.splitlines()
-        for i in range(0, len(party), 6):
 
+        party = set_my_party_text.splitlines()
+        groups = []
+        current_group = None
+
+        for line in party:
+            if not line.strip():
+                continue
+            # 判断是否是标题行（字段数为1）
+            if len(line.strip().split()) == 1:
+                if current_group is not None:
+                    groups.append(current_group)
+                current_group = {'title': line.strip(), 'units': []}
+            else:
+                if current_group is not None:
+                    current_group['units'].append(line)
+        if current_group is not None:
+            groups.append(current_group)
+
+        for group in groups:
             party_number += 1
             if party_number == 11:
                 tab_number += 1
@@ -576,8 +593,8 @@ class set_my_party(Module):
                 if tab_number >= 6:
                     raise AbortError("队伍数量超过上限")
 
-            title = party[i].strip() + "记得借人"
-            unit_list = [u.split('\t') for u in party[i + 1 : i + 1 + 5]]
+            title = group['title'].strip() + "记得借人"
+            unit_list = [u.split('\t') for u in group['units']]
 
             own_unit = [u for u in unit_list if int(u[0]) in client.data.unit]
             not_own_unit = [u for u in unit_list if int(u[0]) not in client.data.unit]
