@@ -181,6 +181,10 @@ class travel_quest_sweep(Module):
                 select_door_id = 1
                 if round_event_data.right_door_effect_id != 900000:
                     select_door_id = 2
+                # 判断左右门的类型
+                left_door_type = "闪光门" if round_event_data.left_door_effect_id != 900000 else "普通门"
+                right_door_type = "闪光门" if round_event_data.right_door_effect_id != 900000 else "普通门"
+                self._log(f"第{round_id}层：左边是{left_door_type}，右边是{right_door_type}，选择了{'左门' if select_door_id == 1 else '右门'}")
                 resp = await client.travel_result_round_event(round_event_data.round, select_door_id)
                 reward.extend(resp.current_round_result.reward_list or [])
                 round_event_data = resp.next_round_event_data
