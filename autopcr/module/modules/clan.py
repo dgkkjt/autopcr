@@ -10,7 +10,6 @@ import random
 @description('看看你是否掉刀')
 @name("公会战刀数")
 @default(True)
-@tag_stamina_get
 class clan_battle_knive(Module):
     async def do_task(self, client: pcrclient):
         top = await client.clan_battle_top()
