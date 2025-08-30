@@ -185,6 +185,7 @@ class simple_demand_sweep_base(Module):
 
 
 @singlechoice('hard_sweep_gap_limit', "盈余阈值", 10, [0, 5, 10])
+@conditional_not_execution("hard_sweep_not_run_time", [])
 @conditional_execution1("hard_sweep_run_time", ["h庆典"])
 @singlechoice('hard_sweep_consider_unit_order', "刷取顺序", "缺口少优先", ["缺口少优先", "缺口大优先"])
 @booltype('hard_sweep_consider_high_rarity_first', "三星角色优先", False)
@@ -215,6 +216,7 @@ class smart_hard_sweep(simple_demand_sweep_base):
         return 3
 
 @singlechoice('shiori_sweep_gap_limit', "盈余阈值", 10, [0, 5, 10])
+@conditional_not_execution("shiori_sweep_not_run_time", ["n3", 'n4及以上'])
 @conditional_execution1("shiori_sweep_run_time", ["无庆典"])
 @singlechoice('shiori_sweep_consider_unit_order', "刷取顺序", "缺口少优先", ["缺口少优先", "缺口大优先"])
 @description('根据记忆碎片缺口刷外传图，直到盈余超过阈值')
@@ -285,6 +287,10 @@ unique_equip_2_pure_memory_id = [
         107501, # 水吃
         113101, # 水流夏
         113301, # 水七七香
+        117001, # 水娇
+        117101, # 水姐姐
+        113401, # 水星
+        113601, # 水黑骑
 ]
 @conditional_execution1("very_hard_sweep_run_time", ["vh庆典"])
 @description('储备专二需求的150碎片，包括' + ','.join(db.get_unit_name(unit_id) for unit_id in unique_equip_2_pure_memory_id))
@@ -298,7 +304,7 @@ class mirai_very_hard_sweep(simple_demand_sweep_base):
         need_list = []
         for unit in unique_equip_2_pure_memory_id:
             kana = db.unit_data[unit].kana
-            target[kana] += 150 if unit not in client.data.unit or len(client.data.unit[unit].unique_equip_slot) < 2 or not client.data.unit[unit].unique_equip_slot[1].is_slot else 0
+            target[kana] += 150 if unit not in client.data.unit or len(client.data.unit[unit].unique_equip_slot) < 2 or not client.data.unit[unit].unique_equip_slot[1].is_slot else 150 - client.data.unit[unit].unique_equip_slot[1].enhancement_pt
             own = -sum(pure_gap[db.unit_to_pure_memory[unit]] if unit in db.unit_to_pure_memory else 0 for unit in db.unit_kana_ids[kana])
             if own < target[kana]:
                 need_list.append(((0, kana), target[kana] - own))

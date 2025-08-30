@@ -35,6 +35,33 @@ def GetSubStoryReader(sub_story_data: EventSubStory, client: pcrclient) -> Union
         return constructor[sub_story_data.event_id](client)
     return None
 
+@EventId(10134)
+class nyd_substory(SubStoryReader):
+
+    def title(self, sub_story_id: int) -> str:
+        return db.nyd_story_data[sub_story_id].title
+
+    async def read(self, sub_story_id: int):
+        await self.client.read_nyd_story(sub_story_id)
+
+@EventId(10132)
+class xac_substory(SubStoryReader):
+
+    def title(self, sub_story_id: int) -> str:
+        return db.xac_story_data[sub_story_id].title
+
+    async def read(self, sub_story_id: int):
+        await self.client.read_xac_story(sub_story_id)
+
+@EventId(10130)
+class asb_substory(SubStoryReader):
+
+    def title(self, sub_story_id: int) -> str:
+        return db.asb_story_data[sub_story_id].title
+
+    async def read(self, sub_story_id: int):
+        await self.client.read_asb_story(sub_story_id)
+
 @EventId(10128)
 class wtm_substory(SubStoryReader):
 

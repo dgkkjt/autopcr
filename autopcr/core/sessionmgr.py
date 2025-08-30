@@ -16,13 +16,13 @@ class sessionmgr(Component[apiclient]):
         self.auto_relogin = True
         self._sdkaccount = None
         self.session_expire_time = 0
-        self.id = hashlib.md5( self.sdk.account.encode('utf-8')).hexdigest()
+        self.id = hashlib.md5(self.sdk.account.encode('utf-8')).hexdigest()
         if not os.path.exists(self.cacheDir):
             os.makedirs(self.cacheDir)
 
     @property
     def cacheFile(self):
-        return os.path.join(self.cacheDir, self.id)
+        return os.path.join(self.cacheDir, self.sdk.id)
 
     async def _bililogin(self):
         uid, access_key = await self.sdk.login()
