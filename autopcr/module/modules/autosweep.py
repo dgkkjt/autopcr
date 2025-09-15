@@ -185,7 +185,7 @@ class simple_demand_sweep_base(Module):
 
 
 @singlechoice('hard_sweep_gap_limit', "盈余阈值", 10, [0, 5, 10])
-@conditional_not_execution("hard_sweep_not_run_time", [])
+@conditional_not_execution1("hard_sweep_not_run_time", ["n3", "n4及以上"])
 @conditional_execution1("hard_sweep_run_time", ["h庆典"])
 @singlechoice('hard_sweep_consider_unit_order', "刷取顺序", "缺口少优先", ["缺口少优先", "缺口大优先"])
 @booltype('hard_sweep_consider_high_rarity_first', "三星角色优先", False)
@@ -216,7 +216,7 @@ class smart_hard_sweep(simple_demand_sweep_base):
         return 3
 
 @singlechoice('shiori_sweep_gap_limit', "盈余阈值", 10, [0, 5, 10])
-@conditional_not_execution("shiori_sweep_not_run_time", ["n3", 'n4及以上'])
+@conditional_not_execution1("shiori_sweep_not_run_time", ["n3", 'n4及以上'])
 @conditional_execution1("shiori_sweep_run_time", ["无庆典"])
 @singlechoice('shiori_sweep_consider_unit_order', "刷取顺序", "缺口少优先", ["缺口少优先", "缺口大优先"])
 @booltype('shiori_sweep_only_consider_limit_unit', "仅限定角色", True)
@@ -296,6 +296,7 @@ unique_equip_2_pure_memory_id = [
         113401, # 水星
         113601, # 水黑骑
 ]
+@conditional_not_execution1("vh_sweep_not_run_time", ["n3", "n4及以上"])
 @conditional_execution1("very_hard_sweep_run_time", ["vh庆典"])
 @description('储备专二需求的150碎片，包括' + ','.join(db.get_unit_name(unit_id) for unit_id in unique_equip_2_pure_memory_id))
 @name('专二纯净碎片储备')
