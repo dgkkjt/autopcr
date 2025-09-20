@@ -165,6 +165,8 @@ unit_modules = ModuleList(
         master_shop,
         unit_promote,
         unit_memory_buy,
+        unit_exceed,
+        unit_evolution,
     ]
 )
 
