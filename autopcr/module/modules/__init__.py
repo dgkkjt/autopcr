@@ -197,6 +197,7 @@ tool_modules = ModuleList(
     'tool',
     [
         # cook_pudding,
+        return_jewel,
         half_schedule,
         ex_equip_info,
         ex_equip_rank_up,
