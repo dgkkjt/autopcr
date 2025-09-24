@@ -196,6 +196,7 @@ tool_modules = ModuleList(
     '工具',
     'tool',
     [
+        return_jewel,
         # cook_pudding,
         return_jewel,
         half_schedule,
