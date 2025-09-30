@@ -99,8 +99,8 @@ daily_modules = ModuleList(
 
         jjc_daily,
         pjjc_daily,
-        unit_equip_enhance_up,
-        unit_skill_level_up,
+        #unit_equip_enhance_up,
+        #unit_skill_level_up,
 
         mission_receive_last,
         seasonpass_accept,
