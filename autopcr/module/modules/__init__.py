@@ -220,5 +220,6 @@ tool_modules = ModuleList(
         pjjc_info,
         pjjc_def_shuffle_team,
         pjjc_atk_shuffle_team,
+        query_deep_progress,
     ]
 )
