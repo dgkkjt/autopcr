@@ -19,3 +19,5 @@ autopcr/http_server/client_version
 hoshino
 # pixi environments
 .pixi
+
+.vscode/
