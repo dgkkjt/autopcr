@@ -20,6 +20,8 @@ from .tools import *
 from .travel import *
 from .unit import *
 from .jjc import *
+from .talent import *
+
 @dataclass
 class ModuleList:
     name: str = ""
@@ -67,8 +69,10 @@ daily_modules = ModuleList(
         underground_skip,
         special_underground_skip,
         tower_cloister_sweep,
-        smart_very_hard_sweep,
         jjc_reward,
+        talent_sweep,
+        smart_very_hard_sweep,
+        xinsui8_sweep,
         xinsui7_sweep,
         xinsui6_sweep,
         xinsui5_sweep,
@@ -86,7 +90,7 @@ daily_modules = ModuleList(
         smart_hard_sweep,
         smart_shiori_sweep,
         last_normal_quest_sweep,
-        smart_normal_sweep,
+        lazy_normal_sweep,
 
         all_in_hatsune,
 
@@ -98,8 +102,8 @@ daily_modules = ModuleList(
 
         jjc_daily,
         pjjc_daily,
-        unit_equip_enhance_up,
-        unit_skill_level_up,
+        # unit_equip_enhance_up,
+        # unit_skill_level_up,
 
         mission_receive_last,
         seasonpass_accept,
@@ -111,7 +115,9 @@ daily_modules = ModuleList(
         jjc_shop,
         pjjc_shop,
         clanbattle_shop,
-        
+        master_shop_talent,
+        master_shop,
+
         clan_equip_request,
         love_up,
         shiori_mission_check,
@@ -196,7 +202,9 @@ tool_modules = ModuleList(
     '工具',
     'tool',
     [
-        return_jewel,
+        find_talent_quest,
+        find_clan_talent_quest,
+        # return_jewel,
         # cook_pudding,
         return_jewel,
         half_schedule,
