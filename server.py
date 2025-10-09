@@ -994,6 +994,9 @@ async def set_my_party(botev: BotEvent):
     }
     return config
 
+@register_tool("会战刀数", "clan_battle_knive")
+async def find_clan_battle_knive(botev: BotEvent):
+    return {}
 # @register_tool("获取导入", "get_library_import_data")
 # async def get_library_import(botev: BotEvent):
     # return {}
