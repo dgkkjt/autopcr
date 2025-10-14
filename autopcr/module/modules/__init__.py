@@ -153,6 +153,7 @@ table_modules = ModuleList(
     [
         get_box_table,
         get_box_excel,
+        get_talent_info,
         get_need_pure_memory,
     ],
     hidden=True,

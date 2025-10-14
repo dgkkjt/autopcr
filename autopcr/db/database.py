@@ -1537,6 +1537,11 @@ class database():
         with self.dbmgr.session() as db:
             return Talent.query(db).to_dict(lambda x: x.talent_id, lambda x: x)
 
+    @lazy_property
+    def experience_talent_level(self) -> Dict[int, ExperienceTalentLevel]:
+        with self.dbmgr.session() as db:
+            return ExperienceTalentLevel.query(db).to_dict(lambda x: x.talent_level, lambda x: x)
+
     def get_ex_equip_star_from_pt(self, id: int, pt: int) -> int:
         rarity = self.get_ex_equip_rarity(id)
         history_star = [star for star, enhancement_data in self.ex_equipment_enhance_data[rarity].items() if enhancement_data.total_point <= pt]
@@ -2115,6 +2120,17 @@ class database():
         item = flow(self.shop_static_price_group[price_group_id]) \
             .first(lambda x: x.buy_count_from <= buy_cnt and (buy_cnt <= x.buy_count_to or x.buy_count_to == -1)) 
         return item
+
+    def get_talent_level(self, point: int) -> int:
+            # 查询经验数据，找到小于等于给定point的最高等级
+            exp_data = flow(self.experience_talent_level.values()) \
+                .where(lambda x: x.total_point <= point) \
+                .to_list()
+            
+            if not exp_data:
+                return 1
+
+            return max(exp_data, key=lambda x: x.total_point).talent_level
 
     def get_talent_id_from_quest_id(self, quest: int) -> int:
         if not self.is_talent_quest(quest):
