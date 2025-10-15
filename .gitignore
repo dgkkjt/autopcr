@@ -16,7 +16,4 @@ table.csv
 autopcr/http_server/ClientApp/assets
 autopcr/http_server/ClientApp/index.html
 autopcr/http_server/client_version
-# pixi environments
-.pixi
-
-.vscode/
+hoshino

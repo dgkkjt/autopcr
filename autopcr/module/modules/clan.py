@@ -14,10 +14,25 @@ import random
 class clan_battle_knive(Module):
     async def do_task(self, client: pcrclient):
         top = await client.clan_battle_top()
-        if not top.remaining_count and top.point == 900:
+        carry_over_count = len(top.carry_over) if top.carry_over else 0
+        if not top.remaining_count and top.point == 900 and carry_over_count == 0:
             self._log("今日三刀已出完！")
         else:
-            self._warn(f"今日还有{top.remaining_count}刀未出，体力点数{top.point}！")
+            time_list = [record.time for record in (top.carry_over or []) if record.time is not None and record.time > 0]
+            carry_over_desc = ""
+            if time_list:
+                time_str = "、".join(f"{t}秒" for t in time_list)
+                count = len(time_list)
+                carry_over_desc = f"有{count}刀尾刀（剩余：{time_str}）"
+            status_parts = []
+            if top.remaining_count:
+                status_parts.append(f"剩余整刀：{top.remaining_count}")
+            if carry_over_desc:
+                status_parts.append(carry_over_desc)
+            status_parts.append(f"体力点数：{top.point}")
+            self._warn(" | ".join(status_parts))
+                
+
 
 @description('在公会中自动随机选择一位成员点赞。')
 @name("公会点赞")
