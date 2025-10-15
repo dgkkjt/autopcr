@@ -1533,7 +1533,7 @@ class database():
             )
 
     @lazy_property
-    def knight_rank_rank_exp(self) -> Dict[int, ExperienceKnightRank]:
+    def experience_knight_rank(self) -> Dict[int, ExperienceKnightRank]:
         with self.dbmgr.session() as db:
             return (
                 ExperienceKnightRank.query(db) 
@@ -1550,8 +1550,7 @@ class database():
 
     def get_ex_equip_star_from_pt(self, id: int, pt: int) -> int:
         rarity = self.get_ex_equip_rarity(id)
-        history_star = [star for star, enhancement_data in self.ex_equipment_enhance_data[rarity].items() if enhancement_data.total_point <= pt]
-        star = max([0] + history_star)
+        star = max([star for star, enhancement_data in self.ex_equipment_enhance_data[rarity].items() if enhancement_data.total_point <= pt], default=0)
         return star
 
     def get_ex_equip_enhance_pt(self, id: int, pt: int, star: int) -> int:
@@ -1575,7 +1574,7 @@ class database():
         return self.ex_equipment_data[id].rarity
 
     def get_ex_equip_max_rank(self, id: int) -> int:
-        return max(self.ex_equipment_rankup_data[self.get_ex_equip_rarity(id)].keys(), default=0)
+        return max(self.ex_equipment_rankup_data.get(self.get_ex_equip_rarity(id), {}).keys(), default=0)
 
     def get_ex_equip_rarity_name(self, id: int) -> str:
         return self.ex_rarity_name[self.get_ex_equip_rarity(id)]
@@ -2015,12 +2014,11 @@ class database():
         return self.experience_unit[target_level]
 
     def query_knight_exp_rank(self, target_value: int) -> int:
-        target_rank = 1
-        for rank, exp in sorted(self.knight_rank_rank_exp.items()):
-            if target_value >= exp:
-                target_rank = rank
-            else:
-                break
+        target_rank = max(  
+            (rank for rank, exp in self.experience_knight_rank.items() if target_value >= exp),  
+            default=1  
+        )  
+
         return target_rank
 
     def get_gacha_temp_ticket(self) -> List[int]:
