@@ -55,6 +55,7 @@ class database():
     gacha_ten_tickets: List[ItemType] = [(eInventoryType.Item, 24002), (eInventoryType.Item, 24004)]
     dice: ItemType = (eInventoryType.Item, 99009)
     ex_pt: ItemType = (eInventoryType.Item, 26201)
+    xinyou: ItemType = (eInventoryType.Item, 25021)
 
     def update(self, dbmgr):
         self.dbmgr = dbmgr
