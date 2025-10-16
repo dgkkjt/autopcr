@@ -394,6 +394,11 @@ class get_talent_info(Module):
             header.append("属性技能")
             data["属性技能"] = skill_tree_text
 
+        #星幽碎片
+        xinyou_count = client.data.get_inventory(db.xinyou)
+        header.append("星幽碎片")
+        data["星幽碎片"] = xinyou_count
+        
         # 大师技能信息
         team_skill_id = 0
         if princess_knight_info.team_skill_latest_node:
@@ -401,10 +406,10 @@ class get_talent_info(Module):
         header.append("大师技能")
         data["大师技能"] = team_skill_id
 
-        #星幽碎片
-        xinyou_count = client.data.get_inventory(db.xinyou)
-        header.append("星幽碎片")
-        data["星幽碎片"] = xinyou_count
-
+       #大师碎片
+        master_fragment_count = client.data.get_inventory(db.master_fragment)
+        header.append("大师碎片")
+        data["大师碎片"] = master_fragment_count
+        
         self._table_header(header)
         self._table(data)
