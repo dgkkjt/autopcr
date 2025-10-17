@@ -173,13 +173,27 @@ class UnitController(Module):
             self._log(f"目标品级{target_promotion_level}超过了免费可提升品级{limit.promotion_level},先提升至品级{limit.promotion_level}")
             await self.unit_promotion_up_aware(limit.promotion_level)
 
+        if limit and target_promotion_level > limit.promotion_level and self.unit.promotion_level == limit.promotion_level:
+            raw_pos = [6, 4, 2, 5, 3, 1]
+            equip_pos = sorted(raw_pos, key=lambda x: (-self.unit.equip_slot[x - 1].is_slot, raw_pos.index(x)))
+            for i in range(6):
+                rp = raw_pos[i]
+                ep = equip_pos[i]
+                up = getattr(limit, f"equipment_{rp}") 
+                if up is None:
+                    break
+                if not self.unit.equip_slot[ep - 1].is_slot:
+                    self._log(f"{self.unit_name}当前品级{limit.promotion_level}可免费装备{db.get_equip_name(self.unit.equip_slot[ep - 1].id)}，先装备")
+
+                    await self.unit_equip_slot_aware(self.unit.equip_slot[ep - 1].id, ep)
+
         demand_level = db.get_promotion_demand_level(self.unit.id, target_promotion_level)
         if self.unit.unit_level < demand_level:
             self._log(f"{self.unit_name}升至品级{target_promotion_level}需要升至{demand_level}级")
-            await self.unit_level_up_aware(demand_level, limit)
+            await self.unit_level_up_aware(demand_level)
 
         await self.unit_promotion_up(target_promotion_level, 
-                                     limit is not None and target_promotion_level <= limit.promotion_level, 
+                                     limit is not None and target_promotion_level <= limit.promotion_level,
                                      )
 
     async def unit_level_up(self, target_level: int, free: bool):
@@ -258,7 +272,9 @@ class UnitController(Module):
                     ep = equip_pos[i]
                     if ep == slot_num:
                         assert self.unit.equip_slot[ep - 1].is_slot == 0, f"{self.unit_name}{slot_num}位装备已经装备了{db.get_equip_name(self.unit.equip_slot[ep - 1].id)}"
-                        up = getattr(limit, f"equipment_{rp}") or -1
+                        up = getattr(limit, f"equipment_{rp}") 
+                        if up is None:
+                            up = -1
                         free = up >= 0
                         break
 
