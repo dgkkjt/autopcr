@@ -16,7 +16,8 @@ from ...model.enums import *
 import random
 import itertools
 from collections import Counter
-
+import asyncio
+import time
 @name('撤下会战助战')
 @default(True)
 @description('拒绝内鬼练度')
@@ -255,6 +256,10 @@ class missing_unit(Module):
 @booltype("cc_until_get", "抽到出", False)
 @default(True)
 class gacha_start(Module):
+    def __init__(self, parent):
+        super().__init__(parent)
+        self._last_gacha_time = 0
+        self._min_gacha_interval = 0.4  # 最小抽卡间隔0.5秒
     def can_stop(self, new, exchange: List[GachaExchangeLineup]):
         r = set(item.unit_id for item in exchange)
         return any(item.id in r for item in new)
@@ -289,6 +294,11 @@ class gacha_start(Module):
         gacha_start_auto_select_pickup: bool = self.get_config('gacha_start_auto_select_pickup')
         try:
             while True:
+                current_time = time.time()
+                time_since_last_gacha = current_time - self._last_gacha_time
+                if time_since_last_gacha < self._min_gacha_interval:
+                    await asyncio.sleep(self._min_gacha_interval - time_since_last_gacha)
+                
                 if gacha_method == '单抽券':
                     reward += await client.exec_gacha_aware(target_gacha, 1, eGachaDrawType.Ticket, client.data.get_inventory(db.gacha_single_ticket), 0, client.time, gacha_start_auto_select_pickup, pickup_min_first)
                 elif gacha_method == '单抽':
@@ -310,6 +320,8 @@ class gacha_start(Module):
                         reward += await client.exec_gacha_aware(target_gacha, 10, eGachaDrawType.Payment, client.data.jewel.free_jewel + client.data.jewel.jewel, 0, client.time, gacha_start_auto_select_pickup, pickup_min_first)
                 else:
                     raise ValueError("未知的抽卡方式")
+                
+                self._last_gacha_time = time.time()
 
                 cnt += 1
                 if not always or self.can_stop(reward.new_unit, db.gacha_exchange_chara[target_gacha.exchange_id if not real_exchange_id else real_exchange_id]):

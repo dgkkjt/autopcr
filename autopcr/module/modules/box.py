@@ -537,7 +537,18 @@ class get_talent_info(Module):
         talent_levels = {}
         for talent_info in princess_knight_info.talent_level_info_list:
             # talent_name = talent_names.get(talent_info.talent_id, f"属性{talent_info.talent_id}")
-            talent_levels[talent_info.talent_id] = db.get_talent_level(talent_info.total_point)
+            current_level = db.get_talent_level(talent_info.total_point)
+            
+            # 获取对应属性未强化的点数
+            unused_point_item_id = 25010 + talent_info.talent_id  # 25011 for fire, 25012 for water, etc.
+            unused_points = client.data.get_inventory((eInventoryType.Item, unused_point_item_id))
+            
+            # 计算总点数和最高等级
+            total_points = talent_info.total_point + unused_points
+            max_level = db.get_talent_level(total_points)
+            
+            # 格式化为"当前等级【最高等级】"
+            talent_levels[talent_info.talent_id] = f"{current_level}【{max_level}】"
 
 
         # 显示属性技能节点信息
@@ -608,7 +619,7 @@ class get_talent_info(Module):
         # 构造JSON格式的数据
         talent_enhance_info = {
             "talent_levels": talent_levels,
-            "skill_tree": skill_tree_text,
-            "team_skill":team_node.node_id,
+            "skill_tree": skill_tree_text if 'skill_tree_text' in locals() else "",
+            "team_skill": team_node.node_id if 'team_node' in locals() else 0,
         }
         self._log(json.dumps(talent_enhance_info, ensure_ascii=False))
