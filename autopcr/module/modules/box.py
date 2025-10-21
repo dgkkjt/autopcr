@@ -610,16 +610,17 @@ class get_talent_info(Module):
                     f"左{columns['left']['count']}[{columns['left']['last_level']}] "
                     f"中{columns['middle']['count']}[{columns['middle']['last_level']}] "
                     f"右{columns['right']['count']}[{columns['right']['last_level']}] "
+                    f"【星幽碎片：{client.data.get_inventory((eInventoryType.Item, 25021))}】"
                 )
 
         # 显示大师技能节点信息
         if princess_knight_info.team_skill_latest_node:
             team_node = princess_knight_info.team_skill_latest_node
-
+            team_node_text = f"{team_node.node_id}【大师碎片：{client.data.get_inventory((eInventoryType.Item, 25101))}】"
         # 构造JSON格式的数据
         talent_enhance_info = {
             "talent_levels": talent_levels,
             "skill_tree": skill_tree_text if 'skill_tree_text' in locals() else "",
-            "team_skill": team_node.node_id if 'team_node' in locals() else 0,
+            "team_skill": team_node_text if 'team_node_text' in locals() else 0,
         }
         self._log(json.dumps(talent_enhance_info, ensure_ascii=False))
