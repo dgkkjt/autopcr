@@ -56,7 +56,7 @@ class database():
     dice: ItemType = (eInventoryType.Item, 99009)
     ex_pt: ItemType = (eInventoryType.Item, 26201)
     xinyou: ItemType = (eInventoryType.Item, 25021)
-    master_fragment = (eInventoryType.Item, 25101)
+    master_fragment: ItemType = (eInventoryType.Item, 25101)
 
     def update(self, dbmgr):
         self.dbmgr = dbmgr
