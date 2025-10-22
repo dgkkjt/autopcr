@@ -201,3 +201,10 @@ class ArenaQueryResponse(BaseModel):
 class TalentQuestData(BaseModel):
     talent_id: int = None
     clear_count: int = None
+
+class EffectiveUnitData(BaseModel):
+    unit_id: int = 0
+    unit_lv: int = 0
+    rank: int = 0
+    equip_num: int = 0
+    equip_enhance_num: int = 0
