@@ -42,10 +42,12 @@ class find_talent_quest(Module):
         result.sort(key = lambda x: x[0])
 
         msg = []
+        clear_info = []
         for talent_id, quest_id in result:
             talent_name = db.talents[talent_id].talent_name 
             quest = "未通关" if quest_id == 0 else f"{db.quest_name[quest_id][4:]}"
-            msg.append(f"{talent_name}{quest}")
+            clear_info.append(f"{talent_name}{quest}")
+        msg.append("通关情况：\n" + "/".join(clear_info)) 
 
         # 添加属性等级和技能信息
         princess_knight_info = client.data.princess_knight_info
@@ -53,11 +55,13 @@ class find_talent_quest(Module):
             # 属性等级信息
             talent_names = {1:"火",2:"水",3:"风",4:"光",5:"暗"}
             talent_levels = {}
+            level_info = []
             for talent_info in princess_knight_info.talent_level_info_list:
                 talent_levels[talent_info.talent_id] = db.get_talent_level(talent_info.total_point)
             
             for tid, name in talent_names.items():
-                msg.append(f"{name}等级{talent_levels.get(tid, 0)}")
+                level_info.append(f"{name}{talent_levels.get(tid, 0)}")
+            msg.append("属性等级：\n" + "/".join(level_info))
 
             # 属性技能信息
             skill_tree_text = "无"
@@ -111,15 +115,17 @@ class find_talent_quest(Module):
                         f"中{columns['middle']['count']}[{columns['middle']['last_level']}] "
                         f"右{columns['right']['count']}[{columns['right']['last_level']}]"
                     )
-            msg.append(f"属性技能{skill_tree_text}")
+            msg.append("属性技能：\n" + skill_tree_text + f"\n星幽碎片：{client.data.get_inventory(db.xinyou)}")
 
             # 添加大师技能和碎片信息
             team_skill_id = princess_knight_info.team_skill_latest_node.node_id if princess_knight_info.team_skill_latest_node else 0
-            msg.append(f"大师技能{team_skill_id}")
-            msg.append(f"大师碎片{client.data.get_inventory(db.master_fragment)}")
-            msg.append(f"星幽碎片{client.data.get_inventory(db.xinyou)}")
+            master_info = [
+                f"大师技能{team_skill_id}",
+                f"大师碎片{client.data.get_inventory(db.master_fragment)}"
+            ]
+            msg.append("/".join(master_info))
 
-        self._log("/".join(msg))
+        self._log("\n".join(msg))
 
 
 
