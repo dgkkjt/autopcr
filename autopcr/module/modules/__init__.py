@@ -70,6 +70,7 @@ daily_modules = ModuleList(
         tower_cloister_sweep,
         jjc_reward,
         talent_sweep,
+        lazy_normal_sweep,
         smart_very_hard_sweep,
         xinsui8_sweep,
         xinsui7_sweep,
@@ -89,7 +90,7 @@ daily_modules = ModuleList(
         smart_hard_sweep,
         smart_shiori_sweep,
         last_normal_quest_sweep,
-        lazy_normal_sweep,
+        
 
         all_in_hatsune,
 
