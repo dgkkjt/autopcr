@@ -221,6 +221,39 @@ class pcrclient(apiclient):
         req.object_list = [CccFinishItemCountInfo(ccc_object_id=item_id, count=count) for item_id, count in items.items()]
         return await self.request(req)
 
+    async def nbb_minigame_top(self, from_system_id: int):
+        req = NbbTopRequest()
+        req.from_system_id = from_system_id
+        return await self.request(req)
+
+    async def nbb_minigame_start(self, nbb_chara_type: int, difficulty: int, from_system_id: int):
+        req = NbbStartRequest()
+        req.nbb_chara_type = nbb_chara_type
+        req.difficulty = difficulty
+        req.from_system_id = from_system_id
+        return await self.request(req)
+
+    async def nbb_minigame_finish(self, play_id: int, kill_score: int, help_bonus: int, help_list: List[int], clear_flg: int, from_system_id: int):
+        req = NbbFinishRequest()
+        req.play_id = play_id
+        req.kill_score = kill_score
+        req.help_bonus = help_bonus
+        req.help_list = help_list
+        req.clear_flg = clear_flg
+        req.from_system_id = from_system_id
+        return await self.request(req)
+    
+    async def arcade_read_story_request(self, story_id: int):
+        req = ArcadeReadStoryRequest()
+        req.story_id = story_id
+        return await self.request(req)
+    
+    async def arcade_story_list_request(self, arcade_id: int) -> List[int]:
+        req = ArcadeStoryListRequest()
+        req.arcade_id = arcade_id
+        response = await self.request(req)
+        return response.story_id_list
+    
     async def item_recycle_ex(self, consume_ex_serial_id_list: List[int]):
         req = ItemRecycleExtraEquipRequest()
         req.consume_ex_serial_id_list = consume_ex_serial_id_list

@@ -1151,3 +1151,69 @@ class return_jewel(Module):
         self._log(f"当前处于最大突破等级角色数: {count_max_level}")
         self._log(f"返钻数量: {return_jewel_count} (向上取整实际获得: {return_jewel_count_10})")
         self._log(f"当前box最多返钻数量: {max_return_jewel_count}")
+
+@description('剧情活动期间需首次击杀普通boss才能解锁该小游戏，所有难度直接完成114514得分，称号需自己上号领取！')
+@name('小游戏：行军大冒险 A-Go-Go！')
+@default(True)
+class mini_game_nbb(Module):
+    async def do_task(self, client: pcrclient):
+        score = 114514
+        STORY_MAP = {2: 5142701, 3: 5142702}  # 难度与剧情的映射
+        
+        try:
+            resp = await client.nbb_minigame_top(6001)
+        except Exception as e:
+            self._log(f"检查是否首通普通boss难度，当前无法获取小游戏信息: {e}")
+            return
+        unlocked_difficulties = {hs.difficulty for hs in resp.high_score_list}
+
+        # 基础剧情强制阅读（仅首次）
+        try:
+            story_id_list = await client.arcade_story_list_request(1013)
+            read_stories = set(story_id_list)
+            if 5142700 not in read_stories:
+                self._log(f"请在游戏阅读小游戏第一章剧情")
+                return
+        except Exception as e:
+            self._log(f"基础剧情处理异常: {e}")
+
+        CHARA_MAP = {1: "惠理子", 2: "真琴"}
+        for chara_id, chara_name in CHARA_MAP.items():
+            current_difficulty = 1  # 从最低难度开始
+            while current_difficulty <= 3:
+                if current_difficulty in unlocked_difficulties:
+                    try:
+                        # 开始并结束游戏
+                        data = await client.nbb_minigame_start(chara_id, current_difficulty, 6001)
+                        clear_flag = 1 if current_difficulty < 3 else 0
+                        await client.nbb_minigame_finish(data.play_id, score, 1500, [], clear_flag, 6001)
+                        self._log(f"{chara_name}难度{current_difficulty}完成，得分{score}")
+
+                        # 通关后处理下一难度解锁
+                        if current_difficulty in STORY_MAP:
+                            await self.unlock_difficulty(client, current_difficulty, STORY_MAP[current_difficulty])
+                            # 刷新解锁状态
+                            resp = await client.nbb_minigame_top(6001)
+                            unlocked_difficulties = {hs.difficulty for hs in resp.high_score_list}
+
+                        current_difficulty += 1  # 推进到下一难度
+
+                    except Exception as e:
+                        self._log(f"{chara_name}难度{current_difficulty}失败: {str(e)}")
+                        break  # 当前难度失败时终止该角色的挑战
+                else:
+                    self._log(f"{chara_name}难度{current_difficulty}未解锁，跳过")
+                    
+    async def unlock_difficulty(self, client, required_diff, story_id):
+        """解锁指定难度需要的剧情"""
+        try:
+            story_id_list = await client.arcade_story_list_request(1013)
+            if story_id not in story_id_list:
+                await client.arcade_read_story_request(story_id)
+                self._log(f"已解锁新难度剧情[ID:{story_id}]")
+                return True
+        except Exception as e:
+            self._log(f"解锁难度{required_diff+1}的剧情处理失败: {e}")
+        return False
+
+

@@ -218,6 +218,7 @@ tool_modules = ModuleList(
         remove_cb_ex_equip,
         remove_cb_support,
         redeem_unit_swap,
+        mini_game_nbb,
         jjc_back,
         pjjc_back,
         jjc_info,
