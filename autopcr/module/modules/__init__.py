@@ -222,6 +222,7 @@ tool_modules = ModuleList(
         caravan_play,
         caravan_shop_buy,  
         redeem_unit_swap,
+        mini_game_nbb,
     ]
 )
 

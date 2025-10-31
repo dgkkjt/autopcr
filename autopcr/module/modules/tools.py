@@ -605,8 +605,8 @@ class get_normal_quest_recommand(Module):
 #         self._log(msg)
 
 @description('从指定面板的指定队开始清除指定数量的编队')
-@inttype("clear_team_num", "队伍数", 1, [i for i in range(1, 11)])
-@inttype("clear_party_start_num", "初始队伍", 1, [i for i in range(1, 11)])
+@inttype("clear_team_num", "队伍数", 1, [i for i in range(1, 21)])
+@inttype("clear_party_start_num", "初始队伍", 1, [i for i in range(1, 21)])
 @inttype("clear_tab_start_num", "初始面板", 1, [i for i in range(1, 7)])
 @name('清除编队')
 class clear_my_party(Module):
@@ -617,7 +617,7 @@ class clear_my_party(Module):
         for _ in range(number):
 
             party_number += 1
-            if party_number == 11:
+            if party_number == 21:
                 tab_number += 1
                 party_number = 1
                 if tab_number >= 6:
@@ -729,3 +729,34 @@ class return_jewel(Module):
         self._log(f"当前处于最大突破等级角色数: {count_max_level}")
         self._log(f"返钻数量: {return_jewel_count} (向上取整实际获得: {return_jewel_count_10})")
         self._log(f"当前box最多返钻数量: {max_return_jewel_count}")
+
+@description('需要先自行解锁该小游戏的最高难度，直接完成114514得分！')
+@name('小游戏：行军大冒险 A-Go-Go！')
+@default(True)
+class mini_game_nbb(Module):
+    async def do_task(self, client: pcrclient):
+        score = 114514
+        chara_names = {
+            1: "惠理子",
+            2: "真琴"
+        }
+        try:
+            resp = await client.nbb_minigame_top(6001)
+        except Exception as e:
+            self._log(f"小游戏未解锁: {e}")
+            return
+
+        unlocked_difficulties = {high_score.difficulty for high_score in resp.high_score_list}
+        self._log(f"已解锁难度: {list(unlocked_difficulties)}")
+
+        if 3 in unlocked_difficulties:
+            for chara_type in [1, 2]:
+                chara_name = chara_names.get(chara_type, f"角色{chara_type}")
+                try:
+                    data = await client.nbb_minigame_start(chara_type, 3, 6001)
+                    await client.nbb_minigame_finish(data.play_id, score, 1500, [], 0, 6001)
+                    self._log(f"角色{chara_name}难度{3}完成，得分{score}")
+                except Exception as e:
+                    self._log(f"角色{chara_type}难度{3}失败: {e}")
+        else:
+            self._log("请先解锁难度3")
