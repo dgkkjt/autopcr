@@ -152,6 +152,7 @@ table_modules = ModuleList(
     'table',
     [
         get_need_pure_memory_box,
+        get_talent_info,
     ],
     hidden=True,
     visible_in_batch=True,

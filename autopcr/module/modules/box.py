@@ -5,6 +5,8 @@ from ...core.pcrclient import pcrclient
 from ...model.error import *
 from ...model.enums import *
 from datetime import datetime
+from ...util.linq import flow
+from ...model.common import TalentSkillNodeInfo
 
 @description('刷新角色练度')
 @name("刷新box")
@@ -180,6 +182,87 @@ class get_box_table(Module):
             unit_name = db.get_unit_name(unit_id)
             header.append({unit_name: list(unit_data.keys())})
             data[unit_name] = unit_data
+        
+        self._table_header(header)
+        self._table(data)
+
+@description('从缓存中查询属性练度，不会登录！任意登录或者刷新box可以更新缓存')
+@name('查属性练度')
+@notlogin(check_data=True)
+@default(True)
+class get_talent_info(Module):
+    async def do_task(self, client: pcrclient):
+        princess_knight_info = client.data.princess_knight_info
+        
+        if not princess_knight_info:
+            self._log("未找到公主骑士信息")
+            return
+
+        # 准备用户信息
+        user_info = {
+            "名字": client.data.user_name,
+            "数据时间": db.format_time(db.parse_time(client.data.data_time))
+        }
+
+        # 构建header和data结构
+        header = []
+        data = {}
+        
+        # 添加用户信息
+        header.extend(list(user_info.keys()))
+        data.update(user_info)
+
+        # 属性等级信息
+        talent_levels = []
+        for talent_info in princess_knight_info.talent_level_info_list:
+            level_key = f"{db.talents[talent_info.talent_id].talent_name}属性等级"
+            talent_levels.append(level_key)
+            data[level_key] = db.get_talent_level(talent_info.total_point)
+        header.extend(talent_levels)
+
+        # 属性技能信息
+        skill_tree_text = "无"
+        page = 0 if not princess_knight_info.talent_skill_last_enhanced_page_node_list else db.talent_skill_node[princess_knight_info.talent_skill_last_enhanced_page_node_list[0].node_id].page_num
+        joined_nodes = flow(princess_knight_info.talent_skill_last_enhanced_page_node_list) \
+                        .where(lambda x: db.talent_skill_node[x.node_id].is_joined_node()) \
+                        .to_list()
+        max_joined_node = max(joined_nodes, key=lambda x: x.node_id, default=TalentSkillNodeInfo(node_id=1))
+        joined_node_after = flow(princess_knight_info.talent_skill_last_enhanced_page_node_list) \
+                            .where(lambda x: x.node_id > max_joined_node.node_id) \
+                            .group_by(lambda x: db.talent_skill_node[x.node_id].pos_x) \
+                            .to_dict(lambda g: g.key, lambda g: g.to_list())
+        joined_node_after_max = {pos: max(nodes, key=lambda x: x.node_id) for pos, nodes in joined_node_after.items()}
+
+        prefix = f"第{page}页 合{len(joined_nodes)}"
+        msg = []
+            
+        if not joined_node_after and joined_nodes:
+            prefix += f"[{max_joined_node.enhance_level}]"
+        elif joined_node_after:
+            for pos, nodes in joined_node_after.items():
+                msg.append(f"{db.talent_skill_node[nodes[0].node_id].pos()}{len(nodes)}[{joined_node_after_max[pos].enhance_level}]")
+            
+        skill_tree_text = prefix + (" ".join(msg) if msg else "")
+
+        header.append("属性技能")
+        data["属性技能"] = skill_tree_text
+
+        #星幽碎片
+        xinyou_count = client.data.get_inventory(db.xinyou)
+        header.append("星幽碎片")
+        data["星幽碎片"] = xinyou_count
+        
+        # 大师技能信息
+        team_skill_id = 0
+        if princess_knight_info.team_skill_latest_node:
+            team_skill_id = princess_knight_info.team_skill_latest_node.node_id
+        header.append("大师技能")
+        data["大师技能"] = team_skill_id
+
+       #大师碎片
+        master_fragment_count = client.data.get_inventory(db.master_fragment)
+        header.append("大师碎片")
+        data["大师碎片"] = master_fragment_count
         
         self._table_header(header)
         self._table(data)
