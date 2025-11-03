@@ -55,6 +55,14 @@ class database():
     gacha_ten_tickets: List[ItemType] = [(eInventoryType.Item, 24002), (eInventoryType.Item, 24004)]
     dice: ItemType = (eInventoryType.Item, 99009)
     ex_pt: ItemType = (eInventoryType.Item, 26201)
+    xinyou: ItemType = (eInventoryType.Item, 25021)
+    master_fragment: ItemType = (eInventoryType.Item, 25101)
+    master_ffragment: ItemType = (eInventoryType.Item, 25102)
+    fire_ball: ItemType = (eInventoryType.Item, 25011)
+    water_ball: ItemType = (eInventoryType.Item, 25012)
+    wind_ball: ItemType = (eInventoryType.Item, 25013)
+    sun_ball: ItemType = (eInventoryType.Item, 25014)
+    dark_ball: ItemType = (eInventoryType.Item, 25015)
 
     def update(self, dbmgr):
         self.dbmgr = dbmgr
@@ -1549,6 +1557,11 @@ class database():
             return Talent.query(db).to_dict(lambda x: x.talent_id, lambda x: x)
 
     @lazy_property
+    def talent_skill_node(self) -> Dict[int, TalentSkillNode]:
+        with self.dbmgr.session() as db:
+            return TalentSkillNode.query(db).to_dict(lambda x: x.node_id, lambda x: x)
+
+    @lazy_property
     def experience_talent_level(self) -> Dict[int, ExperienceTalentLevel]:
         with self.dbmgr.session() as db:
             return ExperienceTalentLevel.query(db).to_dict(lambda x: x.talent_level, lambda x: x)
@@ -2140,15 +2153,12 @@ class database():
         return item
 
     def get_talent_level(self, point: int) -> int:
-            # 查询经验数据，找到小于等于给定point的最高等级
-            exp_data = flow(self.experience_talent_level.values()) \
-                .where(lambda x: x.total_point <= point) \
-                .to_list()
-            
-            if not exp_data:
-                return 1
-
-            return max(exp_data, key=lambda x: x.total_point).talent_level
+        exp_data = flow(self.experience_talent_level.values()) \
+            .where(lambda x: x.total_point <= point) \
+            .to_list()
+        if not exp_data:
+            return 1
+        return max(exp_data, key=lambda x: x.total_point).talent_level
 
     def get_talent_id_from_quest_id(self, quest: int) -> int:
         if not self.is_talent_quest(quest):
