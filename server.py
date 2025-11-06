@@ -29,6 +29,8 @@ import secrets
 from .autopcr.util.pcr_data import get_id_from_name
 import traceback
 from .autopcr.util.logger import instance as logger
+import time
+from .autopcr.http_server.httpserver import _load_one_time_tokens, _save_one_time_tokens
 
 address = None  # 填你的公网IP或域名，不填则会自动尝试获取
 useHttps = False
@@ -450,6 +452,27 @@ async def bangzhu_text(botev: BotEvent):
     msg = outp_b64(await drawer.draw_msgs(sv_help.split("\n")))
     await botev.finish(msg)
 
+@sv.on_fullmatch(f"{prefix}重置密码")
+@wrap_hoshino_event
+async def regist_magic_link(botev: BotEvent):
+    qq = await botev.send_qq()
+    if qq not in usermgr.qids():
+        await botev.finish(f"未找到{qq}的账号，请发送【{prefix}配置日常】进行配置")
+    try:
+        expire_seconds = 60
+        token = secrets.token_urlsafe(32)
+        tokens = _load_one_time_tokens()
+        tokens[token] = {"qid": str(qq), "expires_at": int(time.time()) + expire_seconds, "used": False}
+        _save_one_time_tokens(tokens)
+
+        # address 在本文件顶部定义，已包含 /daily/ 结尾
+        url = address + 'api/one_time_login?token=' + token
+        msg = f"点击下方链接在 {expire_seconds} 秒内登录并修改密码：\n{url}"
+        await botev.send(msg)
+    except Exception as e:
+        logger.exception(e)
+        await botev.send("生成一次性链接失败，请联系管理员")
+        
 @sv.on_fullmatch(f"{prefix}清日常所有")
 @wrap_hoshino_event
 @wrap_accountmgr

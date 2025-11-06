@@ -12,6 +12,7 @@ from quart_compress import Compress
 from quart_rate_limiter import RateLimiter, rate_limit, RateLimitExceeded
 
 from .validator import validate_dict, ValidateInfo, validate_ok_dict, enable_manual_validator
+import json, time
 from ..constants import CACHE_DIR, ALLOW_REGISTER, SUPERUSER
 from ..module.accountmgr import Account, AccountManager, instance as usermgr, AccountException, UserData, \
     PermissionLimitedException, UserDisabledException, UserException
@@ -22,6 +23,32 @@ APP_VERSION_MAJOR = 1
 APP_VERSION_MINOR = 6
 
 CACHE_HTTP_DIR = os.path.join(CACHE_DIR, 'http_server')
+
+# one-time login token store
+ONE_TIME_TOKENS_FILE = os.path.join(CACHE_HTTP_DIR, 'one_time_tokens.json')
+
+def _load_one_time_tokens():
+    try:
+        if not os.path.exists(CACHE_HTTP_DIR):
+            os.makedirs(CACHE_HTTP_DIR)
+        if not os.path.exists(ONE_TIME_TOKENS_FILE):
+            return {}
+        with open(ONE_TIME_TOKENS_FILE, 'r', encoding='utf-8') as fp:
+            return json.load(fp)
+    except Exception:
+        return {}
+
+def _save_one_time_tokens(tokens: dict):
+    try:
+        if not os.path.exists(CACHE_HTTP_DIR):
+            os.makedirs(CACHE_HTTP_DIR)
+        # cleanup expired tokens before saving
+        now = int(time.time())
+        tokens = {k: v for k, v in tokens.items() if not v.get('used', False) and v.get('expires_at', 0) > now}
+        with open(ONE_TIME_TOKENS_FILE, 'w', encoding='utf-8') as fp:
+            json.dump(tokens, fp)
+    except Exception as e:
+        logger.exception(e)
 
 PATH = os.path.dirname(os.path.abspath(__file__))
 static_path = os.path.join(PATH, 'ClientApp')
@@ -508,6 +535,65 @@ data: {ret}\n\n'''
                 return "用户被禁用，请联系管理员", 403
             login_user(AuthUser(qq))
             return "欢迎回来，" + qq, 200
+
+        @self.api_limit.route('/one_time/generate', methods=['POST'])
+        @HttpServer.login_required()
+        @HttpServer.wrapaccountmgr(readonly=True)
+        async def generate_one_time(accountmgr: AccountManager):
+            """为当前用户或（管理员）指定用户生成一次性登录链接，返回可访问的完整 URL。"""
+            data = await request.get_json() or {}
+            qq = data.get('qq', None)
+            try:
+                expire_seconds = int(data.get('expire_seconds', 600))
+            except Exception:
+                expire_seconds = 600
+
+            # target qid: if qq provided, only superuser/admin can generate for others
+            if qq:
+                # check permission
+                if SUPERUSER != current_user.auth_id:
+                    async with usermgr.load(current_user.auth_id, True) as mgr:
+                        if not mgr.secret.admin:
+                            return "无权为其他用户生成链接", 403
+                target_qid = str(qq)
+            else:
+                target_qid = accountmgr.qid
+
+            token = secrets.token_urlsafe(32)
+            tokens = _load_one_time_tokens()
+            expires_at = int(time.time()) + max(10, expire_seconds)
+            tokens[token] = {"qid": target_qid, "expires_at": expires_at, "used": False}
+            _save_one_time_tokens(tokens)
+
+            # construct absolute url
+            url = request.host_url.rstrip('/') + '/daily/api/one_time_login?token=' + token
+            return {"url": url, "expires_at": expires_at}, 200
+
+        @self.api.route('/one_time_login', methods=['GET'])
+        async def one_time_login():
+            """通过一次性 token 登录，token 仅可使用一次且有过期时间。"""
+            token = request.args.get('token', '')
+            if not token:
+                return "缺少 token", 400
+            tokens = _load_one_time_tokens()
+            info = tokens.get(token)
+            if not info:
+                return "无效或已过期的链接", 400
+            now = int(time.time())
+            if info.get('used', False) or info.get('expires_at', 0) <= now:
+                # remove expired/used
+                tokens.pop(token, None)
+                _save_one_time_tokens(tokens)
+                return "链接不可用或已过期", 400
+
+            # mark used and persist
+            info['used'] = True
+            tokens[token] = info
+            _save_one_time_tokens(tokens)
+
+            # perform login
+            login_user(AuthUser(info['qid']))
+            return quart.redirect('/daily/account')
 
         @self.api_limit.route('/register', methods = ['POST'])
         @rate_limit(1, timedelta(minutes=1))
