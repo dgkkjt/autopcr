@@ -281,11 +281,11 @@ async def upload_excel(botev: BotEvent, data: BytesIO, filename: str, folder_nam
     try:
         gid = await botev.group_id()
         folder_id = await get_folder_id(botev, folder_name)
-
+        upload_path = path.resolve().as_uri()
         upload_kwargs = {
             'action': 'upload_group_file',
             'group_id': gid,
-            'file': excel_R.url,
+            'file': upload_path,
             'name': filename
         }
         if folder_id:
