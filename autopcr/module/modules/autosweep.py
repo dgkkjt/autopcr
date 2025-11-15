@@ -587,12 +587,10 @@ class talent_sweep(TalentSweep):
 领取邮件体力后再次扫荡！
 '''.strip())
 @name("深域扫荡2")
-@TalentConfig("talent_sweep2_target_recovery_areas", "重置扫荡", [])
-@TalentConfig("talent_sweep2_no_max_no_sweep", "非最高不扫荡", list(db.talents.keys()))
 @default(True)
 @tag_stamina_consume
 class talent_sweep2(TalentSweep):
     def get_recovery_areas(self) -> List[int]:
-        return self.get_config('talent_sweep2_target_recovery_areas')
+        return self._parent.get_config('talent_sweep_target_recovery_areas', [])
     def get_no_max_no_sweep_areas(self) -> List[int]: 
-        return self.get_config('talent_sweep2_no_max_no_sweep')
+        return self._parent.get_config('talent_sweep_no_max_no_sweep', list(db.talents.keys()))
