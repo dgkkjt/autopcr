@@ -62,7 +62,7 @@ class find_clan_talent_quest(Module):
             flag = False
             max_stage = 0
             data = {
-                'uid': member.viewer_id,
+                'uid': f"{member.viewer_id}",
                 '名字': member.name,
                 'Rank等级': kight_rank
             }
