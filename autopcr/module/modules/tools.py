@@ -755,6 +755,15 @@ class ArenaInfo(Module):
     async def do_task(self, client: pcrclient):
         time = db.format_time(apiclient.datetime)
         self._log(f"时间：{time}")
+        header = ['排名', '名字', 'UID', '头像']
+        self._table_header(header)
+        time_data = {
+            '排名': '时间',
+            '名字': time,
+            'UID': '',
+            '头像': ''
+        }
+        self._table(time_data)
         for page in range(1, 4):
             ranking = await self.get_rank_info(client, 20, page)
             for info in ranking:
@@ -763,6 +772,13 @@ class ArenaInfo(Module):
                 user_name = await self.get_user_info(client, info.viewer_id)
                 you = " <--- 你" if info.viewer_id == client.data.uid else ""
                 self._log(f"{info.rank:02}: ({info.viewer_id}){user_name}-{db.get_unit_name(info.favorite_unit.id)}{you}")
+                data = {
+                    '排名': f"{info.rank:02}",
+                    '名字': f"{user_name}{you}",
+                    'UID': f"{info.viewer_id}",
+                    '头像': db.get_unit_name(info.favorite_unit.id)
+                }
+                self._table(data)
 
 @booltype("jjc_info_cache", "使用缓存信息", True)
 @description('jjc透视前51名玩家的名字')
