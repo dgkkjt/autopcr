@@ -584,7 +584,7 @@ class talent_sweep(TalentSweep):
         return self.get_config('talent_sweep_no_max_no_sweep')
 
 @description('''
-领取邮件体力后再次扫荡！
+领取邮件体力后再次扫荡！复用「深域扫荡」配置
 '''.strip())
 @name("深域扫荡2")
 @default(True)
