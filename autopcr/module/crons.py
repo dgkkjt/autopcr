@@ -61,24 +61,27 @@ async def real_run_cron(accountmgr: AccountManager, accounts_to_run, cur):
     await accountmgr.__aexit__(None, None, None)
     
 
+seman = asyncio.Semaphore(10)
+
 async def _run_crons(cur: datetime.datetime):
     logger.info(f"doing cron check in {cur.hour} {cur.minute}")
     async def run_one_qid(qid):
-        accountmgr = usermgr.load(qid, readonly=True)
-        await accountmgr.__aenter__()
-        try:
-            accounts_to_run = []
-            for account in accountmgr.accounts():
-                async with accountmgr.load(account, readonly=True) as mgr:
-                    if await mgr.is_cron_run(cur.hour, cur.minute):
-                        accounts_to_run.append(account)
-            
-            if accounts_to_run:
-                asyncio.get_event_loop().create_task(real_run_cron(accountmgr, accounts_to_run, cur))
-                accountmgr = None
-        finally:
-            if accountmgr:
-                await accountmgr.__aexit__(None, None, None)
+        async with seman:
+            accountmgr = usermgr.load(qid, readonly=True)
+            await accountmgr.__aenter__()
+            try:
+                accounts_to_run = []
+                for account in accountmgr.accounts():
+                    async with accountmgr.load(account, readonly=True) as mgr:
+                        if await mgr.is_cron_run(cur.hour, cur.minute):
+                            accounts_to_run.append(account)
+                
+                if accounts_to_run:
+                    asyncio.get_event_loop().create_task(real_run_cron(accountmgr, accounts_to_run, cur))
+                    accountmgr = None
+            finally:
+                if accountmgr:
+                    await accountmgr.__aexit__(None, None, None)
     
     await asyncio.gather(*[run_one_qid(qid) for qid in usermgr.qids()])
         
