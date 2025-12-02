@@ -61,29 +61,44 @@ async def real_run_cron(accountmgr: AccountManager, accounts_to_run, cur):
     await accountmgr.__aexit__(None, None, None)
     
 
-seman = asyncio.Semaphore(10)
+MAX_CONCURRENT_QID_CHECKS = 5
+
 
 async def _run_crons(cur: datetime.datetime):
     logger.info(f"doing cron check in {cur.hour} {cur.minute}")
     async def run_one_qid(qid):
-        async with seman:
-            accountmgr = usermgr.load(qid, readonly=True)
-            await accountmgr.__aenter__()
-            try:
-                accounts_to_run = []
-                for account in accountmgr.accounts():
-                    async with accountmgr.load(account, readonly=True) as mgr:
-                        if await mgr.is_cron_run(cur.hour, cur.minute):
-                            accounts_to_run.append(account)
-                
-                if accounts_to_run:
-                    asyncio.get_event_loop().create_task(real_run_cron(accountmgr, accounts_to_run, cur))
-                    accountmgr = None
-            finally:
-                if accountmgr:
-                    await accountmgr.__aexit__(None, None, None)
+        accountmgr = usermgr.load(qid, readonly=True)
+        await accountmgr.__aenter__()
+        try:
+            accounts_to_run = []
+            for account in accountmgr.accounts():
+                async with accountmgr.load(account, readonly=True) as mgr:
+                    if await mgr.is_cron_run(cur.hour, cur.minute):
+                        accounts_to_run.append(account)
+            
+            if accounts_to_run:
+                asyncio.get_event_loop().create_task(real_run_cron(accountmgr, accounts_to_run, cur))
+                accountmgr = None
+        finally:
+            if accountmgr:
+                await accountmgr.__aexit__(None, None, None)
     
-    await asyncio.gather(*[run_one_qid(qid) for qid in usermgr.qids()])
+    pending = set()
+
+    async def run_and_release(qid):
+        try:
+            await run_one_qid(qid)
+        finally:
+            pending.discard(asyncio.current_task())
+
+    for qid in usermgr.qids():
+        while len(pending) >= MAX_CONCURRENT_QID_CHECKS:
+            await asyncio.wait(pending, return_when=asyncio.FIRST_COMPLETED)
+        task = asyncio.get_event_loop().create_task(run_and_release(qid))
+        pending.add(task)
+
+    if pending:
+        await asyncio.gather(*pending)
         
 
 async def write_cron_log(operation: eCronOperation, cur: datetime.datetime, qid: str, account: str, status: eResultStatus, log: str = ""):
