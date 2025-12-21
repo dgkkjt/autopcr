@@ -12,6 +12,7 @@ from ...model.enums import *
 from collections import Counter
 from ...core.apiclient import apiclient
 from ...util.linq import flow
+import datetime
 
 @description('看看你的通关情况')
 @notlogin(check_data=True)
@@ -52,9 +53,9 @@ class find_clan_talent_quest(Module):
         clan_info = await client.get_clan_info()
         clan_name = clan_info.clan.detail.clan_name
         self._log(f"公会: {clan_name}({len(clan_info.clan.members)}人)")
-        header = ['uid', '名字', 'Rank等级', '火深域', '水深域', '风深域', '光深域', '暗深域', '顶关未通']
+        header = ['序号', 'uid', '名字', '最后登录时间', 'Rank等级', '火深域', '水深域', '风深域', '光深域', '暗深域', '顶关未通']
         self._table_header(header)
-        for member in clan_info.clan.members:
+        for i, member in enumerate(clan_info.clan.members):
             profile = await client.get_profile(member.viewer_id)
             rank_exp = profile.user_info.princess_knight_rank_total_exp
             kight_rank=db.query_knight_exp_rank(rank_exp)
@@ -62,8 +63,10 @@ class find_clan_talent_quest(Module):
             flag = False
             max_stage = 0
             data = {
+                '序号': i+1,
                 'uid': f"{member.viewer_id}",
                 '名字': member.name,
+                '最后登录时间': datetime.datetime.fromtimestamp(member.last_login_time).strftime('%Y-%m-%d %H:%M:%S'),
                 'Rank等级': kight_rank
             }
             for talent_info in profile.quest_info.talent_quest:
