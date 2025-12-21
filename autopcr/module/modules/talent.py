@@ -43,6 +43,7 @@ class find_talent_quest(Module):
 
 @description('看看公会深域的通关情况，会登录！')
 @name('查公会深域')
+@booltype('select_last_login_time_first', "按最后登录时间排序", False)
 class find_clan_talent_quest(Module):
     def _format_quest_stage(self, count: int) -> str:
         if count <= 0:
@@ -52,10 +53,16 @@ class find_clan_talent_quest(Module):
     async def do_task(self, client: pcrclient):
         clan_info = await client.get_clan_info()
         clan_name = clan_info.clan.detail.clan_name
+        pickup_last_login_time_first = self.get_config('select_last_login_time_first')
         self._log(f"公会: {clan_name}({len(clan_info.clan.members)}人)")
         header = ['序号', 'uid', '名字', '最后登录时间', 'Rank等级', '火深域', '水深域', '风深域', '光深域', '暗深域', '顶关未通']
         self._table_header(header)
-        for i, member in enumerate(clan_info.clan.members):
+        if pickup_last_login_time_first:
+            sorted_members = sorted(clan_info.clan.members, key=lambda x: x.last_login_time, reverse=True
+           )
+        else:
+            sorted_members = clan_info.clan.members
+        for i, member in enumerate(sorted_members):
             profile = await client.get_profile(member.viewer_id)
             rank_exp = profile.user_info.princess_knight_rank_total_exp
             kight_rank=db.query_knight_exp_rank(rank_exp)

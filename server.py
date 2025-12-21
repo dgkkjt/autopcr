@@ -1066,7 +1066,16 @@ async def find_talent_quest(botev: BotEvent):
 
 @register_tool("查公会深域", "find_clan_talent_quest")
 async def find_clan_talent_quest(botev: BotEvent):
-    return {}
+    select_last_login_time_first = False
+    msg = await botev.message()
+    try:
+        select_last_login_time_first = is_args_exist(msg, '最后登录')
+    except:
+        pass
+    config = {
+        "select_last_login_time_first": select_last_login_time_first
+    }    
+    return config
 
 @register_tool("查box", "get_box_table")
 async def get_box_table(botev: BotEvent):
