@@ -115,6 +115,20 @@ class mission_receive_first(mission_receive):
 class mission_receive_last(mission_receive):
     pass
 
+@description('领取任务奖励1')
+@name("领取任务奖励3")
+@default(True)
+@tag_stamina_get
+class mission_receive_last2(mission_receive):
+    pass
+
+@description('领取任务奖励2')
+@name("领取任务奖励4")
+@default(True)
+@tag_stamina_get
+class mission_receive_last3(mission_receive):
+    pass
+
 @description('')
 @name("领取女神祭任务")
 @default(True)

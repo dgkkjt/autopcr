@@ -74,9 +74,11 @@ daily_modules = ModuleList(
         abyss_boss_sweep,
         talent_sweep,
         present_receive,
+        mission_receive_last2,
         talent_sweep2,
         lazy_normal_sweep,
         smart_very_hard_sweep,
+        mission_receive_last3,
         hatsune_h_sweep,
         xinsui8_sweep,
         xinsui7_sweep,
@@ -90,6 +92,7 @@ daily_modules = ModuleList(
         starcup2_sweep,
         starcup1_sweep, 
         hatsune_dear_reading,
+        mission_receive_last,
         smart_sweep,
         mirai_very_hard_sweep,
         smart_hard_sweep,
@@ -110,7 +113,6 @@ daily_modules = ModuleList(
         # unit_equip_enhance_up,
         # unit_skill_level_up,
 
-        mission_receive_last,
         seasonpass_accept,
         seasonpass_reward,
 
