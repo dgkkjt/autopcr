@@ -22,6 +22,7 @@ from .travel import *
 from .unit import *
 from .talent import *
 from .mirage import *
+from .minigame import *
 
 @dataclass
 class ModuleList:
@@ -233,6 +234,7 @@ tool_modules = ModuleList(
         remove_cb_support,
         redeem_unit_swap,
         mini_game_nbb,
+        mini_game_bsm,
         jjc_back,
         pjjc_back,
         jjc_info,
