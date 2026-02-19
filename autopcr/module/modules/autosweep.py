@@ -395,6 +395,9 @@ unique_equip_2_pure_memory_id = [
         113701, # 天妹
         114401, # 圣哈
         114501, # 圣电
+        111801, # 春吃
+        112001, # 春黑
+        111901, # 春妈
 ]
 @conditional_not_execution1("vh_sweep_not_run_time", ["n3", "n4及以上"])
 @conditional_execution1("very_hard_sweep_run_time", ["vh庆典"])
