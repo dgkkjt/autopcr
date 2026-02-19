@@ -324,17 +324,21 @@ class pcrclient(apiclient):
         req.arcade_id = arcade_id
         response = await self.request(req)
         return response.story_id_list
+    
     async def arcade_list(self, arcade_id: int):
         req = ArcadeStoryListRequest()
         req.arcade_id = arcade_id
+        
     async def arcade_story(self, story_id: int):
         req = ArcadeReadStoryRequest()
         req.story_id = story_id
         return await self.request(req)
+    
     async def bsm_top(self, from_system_id: int):
         req = BsmTopRequest()
         req.from_system_id = from_system_id
         return await self.request(req)
+    
     async def bsm_solo_start(self, solo_mode_id: int, machine_id, token: str, from_system_id: int):
         req = BsmSoloModeStartRequest()
         req.solo_mode_id = solo_mode_id
@@ -342,12 +346,14 @@ class pcrclient(apiclient):
         req.token = token
         req.from_system_id = from_system_id
         return await self.request(req)
+    
     async def bsm_solo_finish(self, battle_result: int, token: str, from_system_id: int):
         req = BsmSoloModeFinishRequest()
         req.battle_result = battle_result
         req.token = token
         req.from_system_id = from_system_id
         return await self.request(req)
+    
     async def bsm_battle_finish(self, battle_result: int, token: str, from_system_id: int):
         req = BsmBattleFinishRequest()
         req.battle_result = battle_result
