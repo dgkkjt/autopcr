@@ -9,6 +9,8 @@ bug反馈/意见/交流群: 885228564
 
 如果网络不好，可自行[下载压缩包](https://github.com/Lanly109/AutoPCR_Web/releases/latest)，然后`python3 _download_web.py /path/to/zip`安装。
 
+可再运行`python3 _download_data.py`下载数据库和图片资源。
+
 ## HTTP 服务器模式
 
 ```bash
