@@ -3,11 +3,13 @@ from typing import Any, Callable, Coroutine, Dict, List, Tuple, Union
 from pathlib import Path
 import re
 
+from .autopcr.util import aiorequests
 from .autopcr.module.accountmgr import BATCHINFO, AccountBatch, TaskResultInfo
 from .autopcr.module.modulebase import eResultStatus
 from .autopcr.util.draw_table import outp_b64
 from .autopcr.http_server.httpserver import HttpServer
 from .autopcr.db.database import db
+from .autopcr.util.unit_recognizer import instance as unit_recognizer
 from .autopcr.module.accountmgr import Account, AccountManager, instance as usermgr
 from .autopcr.db.dbstart import db_start
 from .autopcr.core.clientpool import instance as clientpool
@@ -54,7 +56,6 @@ sv_help = f"""
 - {prefix}日常报告 [0|1|2|3] 最近四次清日常报告
 - {prefix}定时日志 查看定时运行状态
 - {prefix}查角色 [昵称] 查看角色练度
-- {prefix}查缺称号 查看缺少的称号
 - {prefix}查缺角色 查看缺少的限定常驻角色
 - {prefix}查ex装备 [会战] 查看ex装备库存
 - {prefix}查探险编队 根据记忆碎片角色编队战力相当的队伍
@@ -1072,18 +1073,12 @@ async def set_my_party_multi(botev: BotEvent):
 # async def get_library_import(botev: BotEvent):
     # return {}
 
+async def get_pic(address: str):
+    return await (await aiorequests.get(address, timeout=6)).content
+
 @sv.on_prefix(f"{prefix}识图")
 @wrap_hoshino_event
 async def ocr_team(botev: BotEvent):
-    try:
-        from hoshino.modules.priconne.arena import getBox, get_pic
-    except ImportError:
-        try:
-            from hoshino.modules.priconne.arena.old_main import getBox, get_pic
-        except ImportError:
-            await botev.finish("未安装怎么拆截图版，无法使用识图")
-            return
-
     img_urls = await botev.image()
     if not img_urls:
         await botev.finish("未识别到图片!")
@@ -1095,7 +1090,7 @@ async def ocr_team(botev: BotEvent):
         except Exception as e:
             await botev.send(f"图片{id+1}下载失败: {e}")
             continue
-        box, s = await getBox(image)
+        box, s = await unit_recognizer.recognize(image)
         await botev.send(f"图片{id+1}识别结果: {s}")
         if not box:
             await botev.send(f"图片{id+1}未识别到任何队伍！")
