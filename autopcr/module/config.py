@@ -258,7 +258,7 @@ class UnitConfigMixin:
 
 class UnitChoiceConfig(UnitConfigMixin, SingleChoiceConfig):
     def __init__(self, key: str, desc: str):
-        super().__init__(key, desc, 100101, db.unlock_unit_condition)
+        super().__init__(key, desc, 100101, db.unlock_unit_condition_candidate)
 
     def process_value(self, value):
         if isinstance(value, str) and ':' in value: # Compatible with the old version
@@ -272,7 +272,7 @@ class MultiSearchConfig(MultiChoiceConfig):
 
 class EquipListConfig(MultiSearchConfig):
     def __init__(self, key: str, desc: str):
-        super().__init__(key, desc, [], db.equip_candidate(), short_display=True)
+        super().__init__(key, desc, [], db.equip_candidate, short_display=True)
 
     def candidate_display(self, equip_id: int):
         return db.get_equip_name(equip_id)
@@ -367,7 +367,7 @@ class TravelQuestConfig(MultiChoiceConfig):
     """Configuration for travel quests."""
     
     def __init__(self, key: str, desc: str, default: List):
-        super().__init__(key, desc, default, db.travel_quest_data)
+        super().__init__(key, desc, default, lambda: db.travel_quest_data)
 
     def candidate_display(self, quest_id: int):
         if quest_id not in db.travel_quest_data:
@@ -436,7 +436,7 @@ class TalentConfig(MultiChoiceConfig):
     """Configuration for talent quests."""
     
     def __init__(self, key: str, desc: str, default: List):
-        super().__init__(key, desc, default, db.talents)
+        super().__init__(key, desc, default, lambda: db.talents)
 
     def candidate_display(self, talent_id: int):
         return db.talents[talent_id].talent_name
