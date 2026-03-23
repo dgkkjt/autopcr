@@ -63,6 +63,14 @@ docker compose down
 | AUTOPCR_PUBLIC_ADDRESS | QQ bot 发送的公网访问地址 | （可选，留空自动检测） |
 | AUTOPCR_USE_HTTPS | 公网访问链接是否使用 HTTPS | False |
 
+以下为 Docker 部署专属变量（仅在 `docker-compose.yml` 中使用）：
+
+| 环境变量 | 描述 | 默认值 |
+|---------|------|--------|
+| HOST_PORT | 宿主机映射端口 | 13200 |
+| TZ | 容器时区 | Asia/Shanghai |
+| RESTART_POLICY | 容器重启策略 | unless-stopped |
+
 ## Credits
 - aiorequests 来自 [HoshinoBot](https://github.com/Ice-Cirno/HoshinoBot)
 - 图片绘制改自 [convert2img](https://github.com/SonderXiaoming/convert2img)
