@@ -40,6 +40,7 @@ python3 _httpserver_test.py
 - aiorequests 来自 [HoshinoBot](https://github.com/Ice-Cirno/HoshinoBot)
 - 图片绘制改自 [convert2img](https://github.com/SonderXiaoming/convert2img)
 - 前端html来自 [AutoPCR_Web](https://github.com/Lanly109/AutoPCR_Web)
+- 角色OCR来自 [arena](https://github.com/watermellye/arena)
 - ~~前端html来自 [autopcr_web](https://github.com/cca2878/autopcr_web)~~
 - ~~前端html来自 [AutoPCR_Archived](https://github.com/watermellye/AutoPCR_Archived)~~
 - ~~模型生成来自 [PcrotoGen](https://github.com/cc004/PcrotoGen)~~
