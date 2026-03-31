@@ -190,7 +190,7 @@ class hatsune_story_reading(Module):
             for story_info in event_storys.values():
                 if story_info.status == eEventSubStoryStatus.READED:
                     read_story.add(story_info.story_id)
-            for story in db.get_seven_main_stories(event.event_id):
+            for story in db.get_seven_event_stories(event.event_id):
                 story_info = event_storys.get(story.story_id)
                 if not story_info:
                     continue

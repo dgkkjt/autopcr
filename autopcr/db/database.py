@@ -893,13 +893,13 @@ class database():
             )
 
     @lazy_property
-    def seven_story_data(self) -> Dict[int, List[SevenStoryDatum]]:
+    def seven_event_story_data(self) -> Dict[int, List[SevenStoryDatum]]:
         with self.dbmgr.session() as db:
             return (
                 SevenStoryDatum.query(db)
-                .where(lambda x: x.contents_type == 0 and x.story_type == 1)
+                .where(lambda x: x.contents_type == 0 and x.story_type in (1, 2, 3))
                 .group_by(lambda x: x.event_id)
-                .to_dict(lambda x: x.key, lambda x: sorted(x.to_list(), key=lambda y: y.story_index))
+                .to_dict(lambda x: x.key, lambda x: sorted(x.to_list(), key=lambda y: (y.story_index, y.story_id)))
             )
 
     @lazy_property
@@ -2105,8 +2105,8 @@ class database():
 
         raise KeyError(f"无法确定seven活动任务类型: {event_id}:{mission.mission_id}")
 
-    def get_seven_main_stories(self, event_id: int) -> List[SevenStoryDatum]:
-        return self.seven_story_data.get(event_id, [])
+    def get_seven_event_stories(self, event_id: int) -> List[SevenStoryDatum]:
+        return self.seven_event_story_data.get(event_id, [])
 
     def get_seven_obtent_stories(self, event_id: int) -> List[SevenStoryDatum]:
         return self.seven_obtent_story_data.get(event_id, [])
