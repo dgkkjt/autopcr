@@ -248,6 +248,9 @@ class StoryViewingResponse(responses.StoryViewingResponse):
         if self.reward_info:
             for item in self.reward_info:
                 mgr.update_inventory(item)
+        mgr.read_story_ids = mgr.read_story_ids or []
+        if request.story_id not in mgr.read_story_ids:
+            mgr.read_story_ids.append(request.story_id)
         if self.unlock_story_ids:
             mgr.unlock_story_ids = list(dict.fromkeys((mgr.unlock_story_ids or []) + self.unlock_story_ids))
         event_id = self.event_id if self.event_id else None
@@ -512,12 +515,19 @@ class LoadIndexResponse(responses.LoadIndexResponse):
         mgr.stamina_full_recovery_time = self.user_info.stamina_full_recovery_time
         mgr.settings = self.ini_setting
         mgr.recover_stamina_exec_count = self.shop.recover_stamina.exec_count
-        mgr.read_story_ids = self.read_story_ids
-        mgr.unlock_story_ids = self.unlock_story_ids
         mgr.seven_story_list = {
             story.event_id: {info.story_id: info for info in (story.story_info or [])}
             for story in (self.seven_story_list or [])
         }
+        mgr.read_story_ids = list(dict.fromkeys(
+            (self.read_story_ids or []) + [
+                info.story_id
+                for story in mgr.seven_story_list.values()
+                for info in story.values()
+                if info.status == eEventSubStoryStatus.READED
+            ]
+        ))
+        mgr.unlock_story_ids = self.unlock_story_ids
         mgr.event_statuses = self.event_statuses
         mgr.tower_status = self.tower_status
         mgr.campaign_list = self.campaign_list

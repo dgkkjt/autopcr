@@ -913,6 +913,14 @@ class database():
             )
 
     @lazy_property
+    def seven_contents_condition(self) -> Dict[Tuple[int, int], SevenContentsCondition]:
+        with self.dbmgr.session() as db:
+            return (
+                SevenContentsCondition.query(db)
+                .to_dict(lambda x: (x.event_id, x.contents_type), lambda x: x)
+            )
+
+    @lazy_property
     def seven_story_detail(self) -> Dict[int, SevenStoryDatum]:
         with self.dbmgr.session() as db:
             return (
@@ -2104,12 +2112,6 @@ class database():
             return unique.mission_type
 
         raise KeyError(f"无法确定seven活动任务类型: {event_id}:{mission.mission_id}")
-
-    def get_seven_event_stories(self, event_id: int) -> List[SevenStoryDatum]:
-        return self.seven_event_story_data.get(event_id, [])
-
-    def get_seven_obtent_stories(self, event_id: int) -> List[SevenStoryDatum]:
-        return self.seven_obtent_story_data.get(event_id, [])
 
     def is_daily_mission(self, mission_id: int) -> bool:
         return mission_id in self.daily_mission_data or mission_id in self.season_pack
