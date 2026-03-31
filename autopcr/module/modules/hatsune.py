@@ -204,13 +204,15 @@ class hatsune_gacha_exchange(Module):
             box_item = {item.box_set_id: item for item in res.event_gacha_info.box_set_list}
             ticket = client.data.get_inventory((eInventoryType.Item, exchange_ticket_id))
             if db.is_seven_event(event.event_id):
-                if ticket == 0:
-                    self._log(f"无讨伐证，停止交换")
-                    continue
-                do_exchange = True
-                self._log(f"当前{ticket}张，执行seven讨伐证交换")
-                await client.exec_event_gacha(event.event_id, ticket, ticket)
-                ticket = 0
+                while True:
+                    if ticket == 0:
+                        self._log(f"无讨伐证，停止交换")
+                        break
+                    do_exchange = True
+                    exchange_times = min(client.data.settings.loop_box_multi_gacha_count, ticket)
+                    self._log(f"当前{ticket}张，一键交换{exchange_times}次")
+                    await client.exec_event_gacha(event.event_id, exchange_times, ticket)
+                    ticket -= exchange_times
                 res = await client.get_event_gacha_index(event.event_id)
                 self._log(f"已交换至" + (f"第{res.event_gacha_info.gacha_step}轮" if res.event_gacha_info.gacha_step < 6 else "第六轮及以上"))
                 client.data.set_inventory((eInventoryType.Item, exchange_ticket_id), ticket)
