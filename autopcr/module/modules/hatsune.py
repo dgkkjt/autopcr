@@ -14,9 +14,9 @@ async def prepare_event_quest(client: pcrclient, event_id: int):
     await client.get_event_quest_top(event_id)
 
 @conditional_not_execution("hatsune_h_sweep_not_run_time", ["n3", "n4及以上"])
-@multichoice("hatsune_h_sweep_quest", "扫荡关卡", [1,2,3,4,5,6], [1,2,3,4,5,6])
+@multichoice("hatsune_h_sweep_quest", "扫荡关卡", [1,2,3,4,5], [1,2,3,4,5])
 @ActiveHatsuneListConfig("hatsune_h_sweep_not_event", "不扫荡活动", [])
-@description('')
+@description('扫荡关卡选项仅对旧活动生效，新活动默认全刷')
 @name('扫荡活动h本')
 @default(False)
 @tag_stamina_consume
@@ -36,11 +36,18 @@ class hatsune_h_sweep(Module):
                 self._log(f"不扫荡h本")
                 continue
             await prepare_event_quest(client, event.event_id)
-            for i in area:
-                quest_id = db.get_event_hard_quest(event.event_id, i)
-                if not quest_id:
-                    self._log(f"h本{i}不存在")
-                    continue
+            if db.is_seven_event(event.event_id):
+                quests = db.get_event_hard_quests(event.event_id)
+            else:
+                quests = []
+                for i in area:
+                    quest_id = db.get_event_hard_quest(event.event_id, i)
+                    if not quest_id:
+                        self._log(f"h本{i}不存在")
+                        continue
+                    quests.append(quest_id)
+
+            for quest_id in quests:
                 try:
                     reward, clear_count, no_stamina = await client.quest_skip_aware(quest_id, 3, False, True)
                     if clear_count:
