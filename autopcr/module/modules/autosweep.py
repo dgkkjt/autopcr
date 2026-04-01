@@ -398,6 +398,8 @@ unique_equip_2_pure_memory_id = [
         111801, # 春吃
         112001, # 春黑
         111901, # 春妈
+        116701, # 工菜
+        116901, # 电子龙
 ]
 @conditional_execution1("very_hard_sweep_run_time", ["vh庆典"])
 @description('储备专二需求的150碎片（目标角色见模块内 `unique_equip_2_pure_memory_id`）')
