@@ -84,6 +84,7 @@ daily_modules = ModuleList(
         smart_very_hard_sweep,
         mission_receive_last2,
         hatsune_h_sweep,
+        xinsui9_sweep,
         xinsui8_sweep,
         xinsui7_sweep,
         xinsui6_sweep,
