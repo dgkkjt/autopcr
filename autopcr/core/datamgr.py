@@ -10,7 +10,7 @@ import json, base64, gzip
 from ..db.assetmgr import instance as assetmgr
 from ..db.dbmgr import instance as dbmgr
 from ..db.database import db
-from ..db.models import ItemDatum, TrainingQuestDatum
+from ..db.models import ItemDatum, TrainingQuestDatum, UnitRoleType
 from ..util.linq import flow
 from asyncio import Lock
 
@@ -67,10 +67,12 @@ class datamgr(BaseModel, Component[apiclient]):
     talent_quest_area_info: Dict[int, TalentQuestAreaInfo] = {}
     cleared_talent_quest_ids: Dict[int, int] = {}
     princess_knight_info: PrincessKnightInfo = None
+    unit_role_list: List[UnitRoleInfo] = None
     cleared_abyss_quests: Set[int] = set()
     abyss_quest_info: Dict[int, AbyssDailyClearCountList] = {}
     alces_appear_story_flag: int = 0
     alces_receive_tutorial_item_flag: int = 0
+
 
     @staticmethod
     async def try_update_database(ver: int):
@@ -707,6 +709,22 @@ class datamgr(BaseModel, Component[apiclient]):
             info += f"→{up_node_id}"
         info += f"(余{num})"
         return info
+    
+    def format_role_level(self, unit_role: UnitRoleInfo) -> str:
+        parts = []
+        for idx in range(1, 5):
+            slot_level = getattr(unit_role, f"slot_level_{idx}", 0) or 0
+            enhance_level = getattr(unit_role, f"enhance_level_{idx}", 0) or 0
+            parts.append(f"{slot_level}-{enhance_level}")
+        return "/".join(parts)
+
+    def get_role_name_map(self) -> Dict[int, str]:
+        with db.dbmgr.session() as session:
+            return {
+                role.unit_role_id: role.unit_role_name
+                for role in UnitRoleType.query(session).to_list()
+            }
+   
 
     async def request(self, request: Request[TResponse], next: RequestHandler) -> TResponse:
         resp = await next.request(request)

@@ -3,7 +3,7 @@ from ..modulebase import *
 from ..config import *
 from ...core.pcrclient import pcrclient
 from ...model.custom import ItemType
-from ...db.models import QuestDatum, ShioriQuest
+from ...db.models import QuestDatum, ShioriQuest, UnitRoleType
 from typing import List, Dict, Tuple
 import typing
 from ...model.error import *
@@ -37,6 +37,27 @@ class find_talent_quest(Module):
             "属性技能": client.data.get_talent_skill_info(),
             "大师技能": client.data.get_master_skill_info(),
         })
+        header = list(data.keys())
+        self._table_header(header)
+        self._table(data)
+
+@description('看看你的职能情况')
+@notlogin(check_data=True)
+@name('查职能')
+class find_unit_role(Module):
+    async def do_task(self, client: pcrclient):
+        unit_role_list = client.data.unit_role_list or []
+        if not unit_role_list:
+            self._log("暂无职能数据")
+            return
+
+        role_name_map = client.data.get_role_name_map()
+        data = {}
+        for unit_role in sorted(unit_role_list, key=lambda x: x.unit_role_id):
+            role_id = unit_role.unit_role_id
+            role_name = role_name_map.get(role_id, f"职能{role_id}")
+            data[role_name] = client.data.format_role_level(unit_role)
+
         header = list(data.keys())
         self._table_header(header)
         self._table(data)
