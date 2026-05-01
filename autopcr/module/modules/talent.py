@@ -58,6 +58,8 @@ class find_unit_role(Module):
             role_name = role_name_map.get(role_id, f"职能{role_id}")
             data[role_name] = client.data.format_role_level(unit_role)
 
+        self._log(f"职能精通: {data}")
+
         header = list(data.keys())
         self._table_header(header)
         self._table(data)
