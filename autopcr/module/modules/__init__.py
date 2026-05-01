@@ -220,6 +220,7 @@ tool_modules = ModuleList(
         ex_equip_power_maximun,
         set_my_party2,
         find_talent_quest,
+        find_unit_role,
         find_clan_talent_quest,
         # return_jewel,
         # cook_pudding,

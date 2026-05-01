@@ -68,6 +68,7 @@ sv_help = f"""
 - {prefix}查记忆碎片 [可刷取|大师币] 查询缺口记忆碎片，可按地图可刷取或大师币商店过滤
 - {prefix}查装备 [<rank>] [fav] 查询缺口装备，rank为数字，只查询>=rank的角色缺口装备，fav表示只查询favorite的角色
 - {prefix}查深域 查询深域通关情况
+- {prefix}查职能 查询职能精通情况
 - {prefix}查公会深域 查询公会深域通关情况
 - {prefix}刷图推荐 [<rank>] [fav] 查询缺口装备的刷图推荐，格式同上
 - {prefix}公会支援 查询公会支援角色配置
@@ -1092,6 +1093,10 @@ async def half_schedule(botev: BotEvent):
 
 @register_tool("查深域", "find_talent_quest")
 async def find_talent_quest(botev: BotEvent):
+    return {}
+
+@register_tool("查职能", "find_unit_role")
+async def find_unit_role(botev: BotEvent):
     return {}
 
 @register_tool("查公会深域", "find_clan_talent_quest")
