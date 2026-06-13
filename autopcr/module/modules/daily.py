@@ -1,4 +1,4 @@
-from typing import List, Set
+from typing import Dict, List, Set
 
 from ...model.common import InventoryInfo
 from ..modulebase import *
@@ -360,7 +360,7 @@ class pjjc_daily(Module):
 
 _USER_INFO_DISPLAY_ORDER = (
     '玛娜', '心碎', '星球杯', '星幽碎片', '属性球', '大师碎片', '炼金点数',
-    '香水', '扫荡券', '加速券', '大师币', '连结币',
+    '香水', '扫荡券', '加速券', '大师币', '连结币', '月度十连券',
 )
 
 @description('展示基本信息，固定显示玩家名、体力、等级、钻石、母猪石、全角色战力，可自定义显示其他信息')
@@ -369,7 +369,7 @@ _USER_INFO_DISPLAY_ORDER = (
 @multichoice(
     "user_info_display", "显示信息",
     ['心碎', '星幽碎片', '炼金点数', '香水'],
-    ['玛娜', '心碎', '星球杯', '星幽碎片', '属性球', '大师碎片', '炼金点数', '香水', '扫荡券', '加速券', '大师币', '连结币']
+    ['玛娜', '心碎', '星球杯', '星幽碎片', '属性球', '大师碎片', '炼金点数', '香水', '扫荡券', '加速券', '大师币', '连结币', '月度十连券']
 )
 class user_info(Module):
     def _collect_optional_info(self, client: pcrclient, display_items: Set[str]) -> Dict[str, str]:
@@ -403,6 +403,13 @@ class user_info(Module):
                 return f"{master}(残片 {master_f})"
             return str(master)
 
+        def fmt_temp_tickets() -> str:
+            total = sum(
+                inv((eInventoryType.Item, ticket_id))
+                for ticket_id in db.get_gacha_temp_ticket()
+            )
+            return fmt(total)
+
         handlers = {
             '玛娜': lambda: fmt(
                 data.gold.gold_id_free + data.gold.gold_id_pay,
@@ -432,6 +439,7 @@ class user_info(Module):
                 separator='no',
             ),
             '连结币': lambda: str(inv((eInventoryType.Item, 90012))),
+            '月度十连券': fmt_temp_tickets,
         }
 
         return {
