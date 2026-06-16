@@ -793,6 +793,8 @@ class pcrclient(apiclient):
                 self.data.jewel.jewel -= tot
         elif draw_type == eGachaDrawType.Ticket:
             self.data.set_inventory(ticket_item or db.gacha_single_ticket, current_cost_num - 1)
+        elif draw_type == eGachaDrawType.TicketMultiPull10:
+            self.data.set_inventory(ticket_item, current_cost_num - 1)
         elif draw_type == eGachaDrawType.Temp_Ticket_10:
             ticket = next((eInventoryType.Item, temp_ticket) for temp_ticket in db.get_gacha_temp_ticket() if self.data.get_inventory((eInventoryType.Item, temp_ticket)))
             self.data.set_inventory(ticket, current_cost_num - 1)
