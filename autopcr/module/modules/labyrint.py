@@ -50,7 +50,7 @@ class LabyrinthBossConfig(MultiChoiceConfig):
         return f"【{difficulty}】{name}"
 
 
-@description('刷黎明界开局，直到符合要求为准。若已进入黎明界，会无条件撤退，再刷取。完美开局指路线不会错过任何EX关卡和必要的遗物，适合凹高分。区域3/5第3格有遗物和事件两种，遗物固定200分，事件可高可低，求稳or赌狗。')
+@description('刷黎明界开局，直到符合要求为准。若已进入黎明界，会先检查当前公会/难度与开局是否符合要求，不符合时撤退后重刷。完美开局指路线不会错过任何EX关卡和必要的遗物，适合凹高分。区域3/5第3格有遗物和事件两种，遗物固定200分，事件可高可低，求稳or赌狗。')
 @name('黎明界刷开局')
 @LabyrinthBossConfig('labyrinth_reroll_area5_boss', '区域5Boss', LABYRINTH_AREA5_BOSSES)
 @LabyrinthBossConfig('labyrinth_reroll_area3_boss', '区域3Boss', LABYRINTH_AREA3_BOSSES)
@@ -189,6 +189,10 @@ class labyrinth_start_reroll(Module):
             return None, "；".join(failures)
         return routes, ""
 
+    def _log_routes(self, routes: Dict[int, List], map_list: List, area3_bosses: Set[int], area5_bosses: Set[int]):
+        for area in sorted(routes):
+            self._log(self._format_route(area, routes[area], map_list, area3_bosses, area5_bosses))
+
     def _format_route(self, area: int, route: List, map_list: List, area3_bosses: Set[int], area5_bosses: Set[int]) -> str:
         area_columns: Dict[int, List] = {}
         for block in map_list:
@@ -231,7 +235,21 @@ class labyrinth_start_reroll(Module):
             raise AbortError("未解锁所选黎明界难度")
 
         if top.enter_id:
-            self._log("检测到已有黎明界开局，先撤退。")
+            same_guild = top.guild_id == guild_id
+            same_difficulty = top.difficulty == difficulty
+            if same_guild and same_difficulty:
+                resume = await client.labyrinth_resume(top.enter_id)
+                routes, reason = self._find_routes(resume.map_list or [], difficulty, area3_bosses, area5_bosses, third_block_type, perfect_start)
+                if routes:
+                    self._log("检测到已有符合条件的黎明界开局，直接沿用。")
+                    self._log_routes(routes, resume.map_list or [], area3_bosses, area5_bosses)
+                    return
+                self._log(f"检测到已有黎明界开局，但当前开局不符合要求：{reason}，先撤退重刷。")
+            else:
+                self._log(
+                    f"检测到已有黎明界开局，但当前公会/难度为{top.guild_id}/{top.difficulty}，"
+                    f"与设定{guild_id}/{difficulty}不一致，先撤退重刷。"
+                )
             await client.labyrinth_retire(top.enter_id)
 
         last_reason = ""
@@ -240,8 +258,7 @@ class labyrinth_start_reroll(Module):
             routes, reason = self._find_routes(enter.map_list or [], difficulty, area3_bosses, area5_bosses, third_block_type, perfect_start)
             if routes:
                 self._log(f"刷到{'完美' if perfect_start else ''}路线，总尝试次数：{attempt}")
-                for area in sorted(routes):
-                    self._log(self._format_route(area, routes[area], enter.map_list or [], area3_bosses, area5_bosses))
+                self._log_routes(routes, enter.map_list or [], area3_bosses, area5_bosses)
                 return
 
             last_reason = reason

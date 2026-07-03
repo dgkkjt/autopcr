@@ -60,6 +60,11 @@ class pcrclient(apiclient):
         req.difficulty = difficulty
         return await self.request(req)
 
+    async def labyrinth_resume(self, enter_id: int):
+        req = LabyrinthResumeRequest()
+        req.enter_id = enter_id
+        return await self.request(req)
+
     async def labyrinth_retire(self, enter_id: int):
         req = LabyrinthRetireRequest()
         req.enter_id = enter_id
