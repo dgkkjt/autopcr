@@ -50,11 +50,12 @@ class LabyrinthBossConfig(MultiChoiceConfig):
         return f"【{difficulty}】{name}"
 
 
-@description('刷黎明界开局，直到符合要求为准。若已进入黎明界，会先检查当前公会/难度与开局是否符合要求，不符合时撤退后重刷。完美开局指路线不会错过任何EX关卡和必要的遗物，适合凹高分。区域3/5第3格有遗物和事件两种，遗物固定200分，事件可高可低，求稳or赌狗。')
+@description('刷黎明界开局，直到符合要求为准。若已进入黎明界，会先检查当前公会/难度与开局是否符合要求，不符合时撤退后重刷。完美开局指路线不会错过任何EX关卡和必要的遗物，适合凹高分。默认要求区域1双角色连通。区域3/5第3格有遗物和事件两种，遗物固定200分，事件可高可低，求稳or赌狗。')
 @name('黎明界刷开局')
 @LabyrinthBossConfig('labyrinth_reroll_area5_boss', '区域5Boss', LABYRINTH_AREA5_BOSSES)
 @LabyrinthBossConfig('labyrinth_reroll_area3_boss', '区域3Boss', LABYRINTH_AREA3_BOSSES)
 @singlechoice('labyrinth_reroll_third_block_type', '区域3/5第3格', '两者都行', ['必须遗物', '必须事件', '两者都行'])
+@booltype('labyrinth_reroll_area1_double_character_connected', '区域1双角色必须连通', True)
 @booltype('labyrinth_reroll_perfect_start', '完美开局', False)
 @LabyrinthGuildConfig('labyrinth_reroll_guild_id', '公会', 5)
 @singlechoice('labyrinth_reroll_difficulty', '难度', 5, [1, 2, 3, 4, 5])
@@ -128,7 +129,20 @@ class labyrinth_start_reroll(Module):
             return {6}
         return {self.AREA_REQUIREMENTS[area][column]}
 
-    def _find_area_route(self, area: int, map_list: List, area3_bosses: Set[int], area5_bosses: Set[int], third_block_type: str, perfect_start: bool) -> Tuple[Optional[List], str]:
+    def _area1_double_character_connected(self, route: List) -> bool:
+        required_columns = {
+            column
+            for column, block_type in self.AREA_REQUIREMENTS[1].items()
+            if block_type == 4
+        }
+        route_columns = {
+            block.column
+            for block in route
+            if self._block_type(block) == 4 and block.column in required_columns
+        }
+        return required_columns.issubset(route_columns)
+
+    def _find_area_route(self, area: int, map_list: List, area3_bosses: Set[int], area5_bosses: Set[int], third_block_type: str, perfect_start: bool, require_area1_double_character_connected: bool) -> Tuple[Optional[List], str]:
         expected = self.AREA_REQUIREMENTS[area]
         blocks = [block for block in map_list if block.area == area]
         if not blocks:
@@ -147,7 +161,10 @@ class labyrinth_start_reroll(Module):
 
         last_column = max(expected)
 
+        area1_connection_failed = False
+
         def dfs(block, path: List, seen: Set[int]) -> Optional[List]:
+            nonlocal area1_connection_failed
             column = block.column
             if column in expected:
                 if perfect_start and self._block_type(block) not in self._expected_block_types(area, column, third_block_type):
@@ -156,7 +173,11 @@ class labyrinth_start_reroll(Module):
             if column == last_column:
                 if expected[column] == 8 and not self._boss_matches(area, block, area3_bosses, area5_bosses):
                     return None
-                return path + [block]
+                route = path + [block]
+                if area == 1 and require_area1_double_character_connected and not self._area1_double_character_connected(route):
+                    area1_connection_failed = True
+                    return None
+                return route
 
             for next_block_id in block.next_block_id_list or []:
                 if next_block_id in seen:
@@ -174,13 +195,16 @@ class labyrinth_start_reroll(Module):
             if route:
                 return route, ""
 
+        if area == 1 and require_area1_double_character_connected and area1_connection_failed:
+            return None, "区域1双角色未连通"
+
         return None, f"区域{area}没有满足条件的可达路线"
 
-    def _find_routes(self, map_list: List, difficulty: int, area3_bosses: Set[int], area5_bosses: Set[int], third_block_type: str, perfect_start: bool) -> Tuple[Optional[Dict[int, List]], str]:
+    def _find_routes(self, map_list: List, difficulty: int, area3_bosses: Set[int], area5_bosses: Set[int], third_block_type: str, perfect_start: bool, require_area1_double_character_connected: bool) -> Tuple[Optional[Dict[int, List]], str]:
         routes: Dict[int, List] = {}
         failures = []
         for area in self._target_areas(difficulty):
-            route, reason = self._find_area_route(area, map_list, area3_bosses, area5_bosses, third_block_type, perfect_start)
+            route, reason = self._find_area_route(area, map_list, area3_bosses, area5_bosses, third_block_type, perfect_start, require_area1_double_character_connected)
             if not route:
                 failures.append(reason)
             else:
@@ -225,6 +249,7 @@ class labyrinth_start_reroll(Module):
         area3_bosses: Set[int] = set(self.get_config('labyrinth_reroll_area3_boss'))
         area5_bosses: Set[int] = set(self.get_config('labyrinth_reroll_area5_boss'))
         third_block_type: str = self.get_config('labyrinth_reroll_third_block_type')
+        require_area1_double_character_connected: bool = self.get_config('labyrinth_reroll_area1_double_character_connected')
         perfect_start: bool = self.get_config('labyrinth_reroll_perfect_start')
         max_count: int = 100
 
@@ -239,7 +264,7 @@ class labyrinth_start_reroll(Module):
             same_difficulty = top.difficulty == difficulty
             if same_guild and same_difficulty:
                 resume = await client.labyrinth_resume(top.enter_id)
-                routes, reason = self._find_routes(resume.map_list or [], difficulty, area3_bosses, area5_bosses, third_block_type, perfect_start)
+                routes, reason = self._find_routes(resume.map_list or [], difficulty, area3_bosses, area5_bosses, third_block_type, perfect_start, require_area1_double_character_connected)
                 if routes:
                     self._log("检测到已有符合条件的黎明界开局，直接沿用。")
                     self._log_routes(routes, resume.map_list or [], area3_bosses, area5_bosses)
@@ -255,7 +280,7 @@ class labyrinth_start_reroll(Module):
         last_reason = ""
         for attempt in range(1, max_count + 1):
             enter = await client.labyrinth_enter(guild_id, difficulty)
-            routes, reason = self._find_routes(enter.map_list or [], difficulty, area3_bosses, area5_bosses, third_block_type, perfect_start)
+            routes, reason = self._find_routes(enter.map_list or [], difficulty, area3_bosses, area5_bosses, third_block_type, perfect_start, require_area1_double_character_connected)
             if routes:
                 self._log(f"刷到{'完美' if perfect_start else ''}路线，总尝试次数：{attempt}")
                 self._log_routes(routes, enter.map_list or [], area3_bosses, area5_bosses)
