@@ -249,8 +249,8 @@ class labyrinth_start_reroll(Module):
         area3_bosses: Set[int] = set(self.get_config('labyrinth_reroll_area3_boss'))
         area5_bosses: Set[int] = set(self.get_config('labyrinth_reroll_area5_boss'))
         third_block_type: str = self.get_config('labyrinth_reroll_third_block_type')
-        require_area1_double_character_connected: bool = self.get_config('labyrinth_reroll_area1_double_character_connected')
         perfect_start: bool = self.get_config('labyrinth_reroll_perfect_start')
+        require_area1_double_character_connected: bool = self.get_config('labyrinth_reroll_area1_double_character_connected') and not perfect_start
         max_count: int = 100
 
         top = await client.labyrinth_top()
