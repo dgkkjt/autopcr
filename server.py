@@ -70,6 +70,7 @@ sv_help = f"""
 - {prefix}查深域 查询深域通关情况
 - {prefix}查职能 查询职能精通情况
 - {prefix}查公会深域 查询公会深域通关情况
+- {prefix}黎明界开局 <公会名> [1-5] 刷指定公会的黎明界开局，省略时难度默认为5
 - {prefix}刷图推荐 [<rank>] [fav] 查询缺口装备的刷图推荐，格式同上
 - {prefix}公会支援 查询公会支援角色配置
 - {prefix}卡池 查看当前卡池
@@ -1098,6 +1099,7 @@ async def half_schedule(botev: BotEvent):
 @register_tool("黎明界开局", "labyrinth_start_reroll")
 async def labyrinth_start_reroll(botev: BotEvent):
     guild_id = 0
+    difficulty = 5
     msg = await botev.message()
     try:
         for guild in db.labyrinth_enter_guild.values():
@@ -1109,8 +1111,17 @@ async def labyrinth_start_reroll(botev: BotEvent):
         pass
     if guild_id == 0:
         await botev.finish(f"未找到公会，请输入包含以下公会名字：" + "\n".join([guild.guild_name.replace(r"\n", "") for guild in db.labyrinth_enter_guild.values()]))
+    if msg:
+        try:
+            difficulty = int(msg[0])
+        except:
+            await botev.finish(f"难度参数必须是1到5，例如：{prefix}黎明界开局 公会名 5")
+        if difficulty < 1 or difficulty > 5:
+            await botev.finish(f"难度参数必须是1到5，例如：{prefix}黎明界开局 公会名 5")
+        del msg[0]
     return {
             "labyrinth_reroll_guild_id": guild_id,
+            "labyrinth_reroll_difficulty": difficulty,
     }
 
 @register_tool("查深域", "find_talent_quest")

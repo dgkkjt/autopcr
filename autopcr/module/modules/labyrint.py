@@ -8,7 +8,7 @@ from ...db.database import db
 from ...model.enums import *
 
 LABYRINTH_AREA3_BOSSES = [
-    (312505, "厄勒克特拉夫人", "简单"),
+    (312505, "厄勒克特拉夫人", "普通"),
     (319604, "冰霜魔狼", "简单"),
     (303306, "暗黑滴水嘴兽", "普通"),
     (301206, "巨型魔像", "普通"),
