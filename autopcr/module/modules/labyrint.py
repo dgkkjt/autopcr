@@ -251,7 +251,7 @@ class labyrinth_start_reroll(Module):
         third_block_type: str = self.get_config('labyrinth_reroll_third_block_type')
         perfect_start: bool = self.get_config('labyrinth_reroll_perfect_start')
         require_area1_double_character_connected: bool = self.get_config('labyrinth_reroll_area1_double_character_connected') and not perfect_start
-        max_count: int = 100
+        max_count: int = 500
 
         top = await client.labyrinth_top()
         max_unlocked_difficulty = self._max_unlocked_difficulty(top)
