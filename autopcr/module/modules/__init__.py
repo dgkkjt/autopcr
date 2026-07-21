@@ -11,7 +11,7 @@ from .daily import *
 from .exequip import *
 from .gacha import *
 from .hatsune import *
-from .labyrint import *
+from .labyrinth import *
 from .room import *
 from .shiori import *
 from .shop import *
@@ -74,6 +74,7 @@ daily_modules = ModuleList(
         mirage_floor_receive,
         mirage_nemesis_sweep,
         tower_cloister_sweep,
+        labyrinth_sweep,
         jjc_reward,
         abyss_quest_sweep,
         abyss_boss_sweep,
@@ -85,18 +86,8 @@ daily_modules = ModuleList(
         smart_very_hard_sweep,
         mission_receive_last2,
         hatsune_h_sweep,
-        xinsui9_sweep,
-        xinsui8_sweep,
-        xinsui7_sweep,
-        xinsui6_sweep,
-        xinsui5_sweep,
-        xinsui4_sweep,
-        xinsui3_sweep,
-        xinsui2_sweep,
-        xinsui1_sweep,
-        starcup3_sweep,
-        starcup2_sweep,
-        starcup1_sweep, 
+        xinsui_sweep,
+        starcup_sweep,
         hatsune_dear_reading,
         mission_receive_last3,
         smart_sweep,
@@ -230,6 +221,7 @@ tool_modules = ModuleList(
         # cook_pudding,
         ex_equip_rank_up,
         ex_equip_enhance_up,
+        ex_equip_state,
         half_schedule,
         caravan_play,
         caravan_shop_buy,
