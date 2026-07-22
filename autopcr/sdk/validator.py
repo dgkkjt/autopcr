@@ -22,7 +22,7 @@ async def localValidator():
         n = 3
         for _ in range(n):
             try:
-                _type = gt_obj.get_type(gt, challenge)
+                _type = gt_obj.get_type(gt, challenge, None)
                 break
             except Exception as e:
                 pass
@@ -30,7 +30,7 @@ async def localValidator():
         if _type == 'click':
             (c, s, args) = gt_obj.get_new_c_s_args(gt, challenge)
             cor = asyncio.sleep(2)
-            w = gt_obj.generate_w(gt_obj.calculate_key(args), gt, challenge, str(c), s, "abcdefghijklmnop")
+            w = gt_obj.generate_w(gt_obj.calculate_key(args), gt, challenge, c, s)
             await cor
             (msg, validate) = gt_obj.verify(gt, challenge, w)
             info = {
