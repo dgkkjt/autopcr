@@ -303,16 +303,15 @@ class travel_shop(Module):
     async def do_task(self, client: pcrclient):
         shop = await client.profile_picture_frame_shop_index()
         ticket = next((item for item in (shop.period_lineup_list or [])
-            if item.slot_id == 9), None)
+                       if item.slot_id == 9), None)
         if not ticket or ticket.sold:
             raise SkipError('白金扭蛋券已售罄')
 
-        buy_count = ticket.stock_count - ticket.purchase_count
-        if buy_count <= 0:
-            raise SkipError('无白金扭蛋券可购买')
-
-        coin = client.data.get_inventory((eInventoryType.Item, shop.currency_item_id))
-        buy_count = min(buy_count, coin // ticket.price)
+        stock_count = ticket.stock_count or 0
+        purchase_count = ticket.purchase_count or 0
+        coin = client.data.get_inventory((eInventoryType.Item, shop.currency_item_id)) or 0
+        remaining_count = max(0, stock_count - purchase_count)
+        buy_count = min(remaining_count, coin // ticket.price)
         if buy_count <= 0:
             raise SkipError(f'探险币{coin}不足购买一张白金扭蛋券所需的{ticket.price}')
 
