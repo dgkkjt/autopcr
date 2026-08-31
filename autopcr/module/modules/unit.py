@@ -120,6 +120,11 @@ class UnitController(Module):
 
     # md python 没有引用
     async def unit_skill_up_aware(self, location: eSkillLocationCategory, skill: Callable[[], SkillLevelInfo], target_skill_level: int):
+        skill_level_limit = self.client.data.team_level + (10 if self.unit.exceed_stage else 0)
+        if self.to_max_level and target_skill_level > skill_level_limit:
+            self._log(f"{self.unit_name}技能{self.skill_name[location]}目标等级{target_skill_level}超过当前可提升的最高等级{skill_level_limit}，将提升至{skill_level_limit}级")
+            target_skill_level = skill_level_limit
+
         limit = await self.is_growth_unit()
         if limit and limit.skill_level < target_skill_level and skill().skill_level < limit.skill_level:
             self._log(f"{self.unit_name}技能{self.skill_name[location]}超过了免费可提升等级{limit.skill_level},先提升至等级{limit.skill_level}")
