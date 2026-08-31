@@ -311,6 +311,11 @@ class travel_shop(Module):
         if buy_count <= 0:
             raise SkipError('无白金扭蛋券可购买')
 
+        coin = client.data.get_inventory((eInventoryType.Item, shop.currency_item_id))
+        buy_count = min(buy_count, coin // ticket.price)
+        if buy_count <= 0:
+            raise SkipError(f'探险币{coin}不足购买一张白金扭蛋券所需的{ticket.price}')
+
         res = await client.profile_picture_frame_shop_buy(1, ticket.slot_id, buy_count)
         msg = await client.serialize_reward_summary(res.purchase_list)
         self._log(f'购买了{buy_count}张白金扭蛋券:\n{msg}')
