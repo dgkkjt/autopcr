@@ -23,8 +23,10 @@ LABYRINTH_BLOCK_TYPE_NAME = {
 @name('黎明界刷开局')
 @LabyrinthBossConfig('labyrinth_reroll_area5_boss', '区域5Boss', 5, [310103])
 @LabyrinthBossConfig('labyrinth_reroll_area3_boss', '区域3Boss', 3, [319604])
-@singlechoice('labyrinth_reroll_third_block_type', '区域3/5第3格', '事件', ['遗物', '事件', '任意'])
 @singlechoice('labyrinth_reroll_second_block_type', '区域2第4格', '遗物', ['遗物', '商店', '任意'])
+@singlechoice('labyrinth_reroll_area2_block_type', '区域2第2/6格', '角色', ['事件', '遗物', '角色'])
+@singlechoice('labyrinth_reroll_area3_block_type', '区域3第4格', '角色', ['事件', '遗物', '角色'])
+@singlechoice('labyrinth_reroll_third_block_type', '区域3/5第3格', '事件', ['遗物', '事件', '任意'])
 @booltype('labyrinth_reroll_area1_double_character_connected', '区域1双角色必须连通', True)
 @singlechoice('labyrinth_reroll_max_count', '重开上限', 500, [100, 500, 1000, 2000])
 @booltype('labyrinth_reroll_perfect_start', '完美开局', False)
@@ -132,7 +134,7 @@ class labyrinth_start_reroll(Module):
             return 1
         return min(max(cleared) + 1, 5)
 
-    def _build_expected_block_types(self, third_block_type: str, second_block_type: str) -> Dict[int, Dict[int, Set[eLabyrinthBlockType]]]:
+    def _build_expected_block_types(self, third_block_type: str, second_block_type: str, area3_block_type: str, area2_block_type: str) -> Dict[int, Dict[int, Set[eLabyrinthBlockType]]]:
         expected = {
             area: {
                 column: set(block_types)
@@ -155,6 +157,15 @@ class labyrinth_start_reroll(Module):
             '任意': {eLabyrinthBlockType.RELIC, eLabyrinthBlockType.SHOP},
         }.get(second_block_type, {eLabyrinthBlockType.RELIC})
         expected[2][4] = set(second_types)
+
+        character_event_relic_types = {
+            '角色': {eLabyrinthBlockType.TICKET},
+            '事件': {eLabyrinthBlockType.EVENT},
+            '遗物': {eLabyrinthBlockType.RELIC},
+        }
+        expected[2][2] = set(character_event_relic_types.get(area2_block_type, {eLabyrinthBlockType.TICKET}))
+        expected[2][6] = set(character_event_relic_types.get(area2_block_type, {eLabyrinthBlockType.TICKET}))
+        expected[3][4] = set(character_event_relic_types.get(area3_block_type, {eLabyrinthBlockType.TICKET}))
         return expected
 
     def _area1_double_character_connected(self, route: List) -> bool:
@@ -280,10 +291,17 @@ class labyrinth_start_reroll(Module):
         area5_bosses: Set[int] = set(self.get_config('labyrinth_reroll_area5_boss'))
         third_block_type: str = self.get_config('labyrinth_reroll_third_block_type')
         second_block_type: str = self.get_config('labyrinth_reroll_second_block_type')
+        area3_block_type: str = self.get_config('labyrinth_reroll_area3_block_type')
+        area2_block_type: str = self.get_config('labyrinth_reroll_area2_block_type')
         perfect_start: bool = self.get_config('labyrinth_reroll_perfect_start')
         require_area1_double_character_connected: bool = self.get_config('labyrinth_reroll_area1_double_character_connected') and not perfect_start
         max_count: int = self.get_config('labyrinth_reroll_max_count')
-        expected_block_types = self._build_expected_block_types(third_block_type, second_block_type)
+        expected_block_types = self._build_expected_block_types(
+            third_block_type,
+            second_block_type,
+            area3_block_type,
+            area2_block_type,
+        )
 
         top = await client.labyrinth_top()
         max_unlocked_difficulty = self._max_unlocked_difficulty(top)
