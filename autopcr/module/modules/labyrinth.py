@@ -24,8 +24,8 @@ LABYRINTH_BLOCK_TYPE_NAME = {
 @LabyrinthBossConfig('labyrinth_reroll_area5_boss', '区域5Boss', 5, [310103])
 @LabyrinthBossConfig('labyrinth_reroll_area3_boss', '区域3Boss', 3, [319604])
 @singlechoice('labyrinth_reroll_second_block_type', '区域2第4格', '遗物', ['遗物', '商店', '任意'])
-@singlechoice('labyrinth_reroll_area2_block_type', '区域2第2/6格', '角色', ['事件', '遗物', '角色', '任意'])
-@singlechoice('labyrinth_reroll_area3_block_type', '区域3第4格', '角色', ['事件', '遗物', '角色', '任意'])
+@singlechoice('labyrinth_reroll_area2_block_type', '区域2第2/6格', '角色', ['事件', '角色', '任意'])
+@singlechoice('labyrinth_reroll_area3_block_type', '区域3第4格', '角色', ['事件', '角色', '任意'])
 @singlechoice('labyrinth_reroll_third_block_type', '区域3/5第3格', '事件', ['遗物', '事件', '任意'])
 @booltype('labyrinth_reroll_area1_double_character_connected', '区域1双角色必须连通', True)
 @singlechoice('labyrinth_reroll_max_count', '重开上限', 500, [100, 500, 1000, 2000])
@@ -165,7 +165,6 @@ class labyrinth_start_reroll(Module):
             '任意': {
                 eLabyrinthBlockType.TICKET,
                 eLabyrinthBlockType.EVENT,
-                eLabyrinthBlockType.RELIC,
             },
         }
         expected[2][2] = set(character_event_relic_types.get(area2_block_type, {eLabyrinthBlockType.TICKET}))
