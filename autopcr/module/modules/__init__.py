@@ -112,6 +112,7 @@ daily_modules = ModuleList(
         # unit_equip_enhance_up,
         # unit_skill_level_up,
         
+        daily_mission_sweep,
         mission_receive_last,
         seasonpass_accept,
         seasonpass_reward,

@@ -1,6 +1,6 @@
-from typing import Dict, List, Set
+from typing import Any, Dict, List, Set
 
-from ...model.common import InventoryInfo
+from ...model.common import InventoryInfo, UserMissionInfo
 from ..modulebase import *
 from ..config import *
 from ...core.pcrclient import pcrclient
@@ -9,6 +9,7 @@ from ...model.error import *
 from ...db.database import db
 from ...model.enums import *
 from ...util.questutils import *
+from .hatsune import prepare_event_quest
 import asyncio
 from ...util.format_number import format_number
 
@@ -122,6 +123,95 @@ class mission_receive_last2(mission_receive):
 @tag_stamina_get
 class mission_receive_last3(mission_receive):
     pass
+
+# 目标每日任务条件：mission_condition == 1008 且 condition_num == 20（通关20次）
+_DAILY_MISSION_CONDITION = 1008
+_DAILY_MISSION_CONDITION_NUM = 20
+
+@description('清日常通用任务领奖前，检查最新的「通关20次」每日任务，仅补刷缺少的次数：优先最新活动最后一张可扫荡普图，其次当前开放的最后一张可扫荡N图，仅消耗当前体力（不氪体）')
+@name("补刷每日任务关卡")
+@default(False)
+@tag_stamina_consume
+class daily_mission_sweep(Module):
+
+    def _select_daily_mission(self, missions: List[UserMissionInfo],
+                              daily_mission_data: Dict[int, Any]) -> UserMissionInfo:
+        # 仅考虑「当前任务列表」中、且主数据条件为「通关20次」的每日任务，取 daily_mission_id 最大者。
+        # 不直接取 db.daily_mission_data 中 id 最大的候选：最新库常已包含尚未开放的未来任务
+        # （例如 11001050 于 2026/09/30 05:00 才开放），若账号尚未持有该任务会误判为“任务不存在”。
+        candidates = [
+            mission for mission in missions
+            if mission.mission_id in daily_mission_data
+            and daily_mission_data[mission.mission_id].mission_condition == _DAILY_MISSION_CONDITION
+            and daily_mission_data[mission.mission_id].condition_num == _DAILY_MISSION_CONDITION_NUM
+        ]
+        if not candidates:
+            raise SkipError("未找到「通关20次」每日任务")
+        return max(candidates, key=lambda mission: mission.mission_id)
+
+    def _missing_clear_count(self, mission: UserMissionInfo) -> int:
+        # 仅在该任务尚未完成且未领奖时计算 20 - clear_num
+        if mission.mission_status == eMissionStatusType.EnableReceive:
+            raise SkipError("「通关20次」每日任务已完成")
+        if mission.mission_status == eMissionStatusType.AlreadyReceive:
+            raise SkipError("「通关20次」每日任务已领取")
+        missing = _DAILY_MISSION_CONDITION_NUM - (mission.clear_num or 0)
+        if missing <= 0:
+            raise SkipError("「通关20次」每日任务已完成")
+        return missing
+
+    def _is_event_quest_sweepable(self, client: pcrclient, event_id: int, quest_id: int) -> bool:
+        quest = client.data.hatsune_quest_dict.get(event_id, {}).get(quest_id)
+        return quest is not None and quest.clear_flag == 3
+
+    async def _select_event_quest(self, client: pcrclient, event_id: int) -> int:
+        await prepare_event_quest(client, event_id)
+        # 末关不可扫荡时向前回退至同类第一张可扫荡关卡
+        for quest_id in sorted(db.get_event_normal_quests(event_id), reverse=True):
+            if self._is_event_quest_sweepable(client, event_id, quest_id):
+                return quest_id
+        raise SkipError(f"活动{event_id}无可扫荡普图")
+
+    def _ordered_normal_quest_ids(self, quest_data: Dict[int, Any], now: Any) -> List[int]:
+        # 开始时间已到的 N 图，按关卡 ID 倒序
+        return sorted(
+            (quest_id for quest_id, quest in quest_data.items() if db.parse_time(quest.start_time) <= now),
+            reverse=True,
+        )
+
+    def _select_normal_quest(self, client: pcrclient) -> int:
+        for quest_id in self._ordered_normal_quest_ids(db.normal_quest_data, apiclient.datetime):
+            if client.data.is_quest_sweepable(quest_id):
+                return quest_id
+        raise SkipError("没有可扫荡的N图")
+
+    async def _select_target_quest(self, client: pcrclient) -> int:
+        # 有活动时取 event_id 最大的活动，优先其最后一张可扫荡普图；否则回退到主线 N 图
+        events = db.get_active_event()
+        if events:
+            event = max(events, key=lambda event: event.event_id)
+            return await self._select_event_quest(client, event.event_id)
+        return self._select_normal_quest(client)
+
+    async def do_task(self, client: pcrclient):
+        missions = await client.mission_index()
+        target = self._select_daily_mission(missions.missions or [], db.daily_mission_data)
+        missing = self._missing_clear_count(target)
+        try:
+            quest_id = await self._select_target_quest(client)
+        except SkipError as e:
+            self._warn(str(e))
+            return
+        quest_name = db.get_quest_name(quest_id)
+        self._log(f"每日任务{target.mission_id}（通关20次）缺少{missing}次，补刷关卡：{quest_name}")
+        # 只消耗当前体力：recover=False，不使用氪体
+        reward, clear_count, no_stamina = await client.quest_skip_aware(quest_id, missing, recover=False)
+        self._log(f"{quest_name}: 实际扫荡{clear_count}次")
+        if reward:
+            self._log(await client.serialize_reward_summary(reward))
+        if no_stamina or clear_count < missing:
+            self._warn(f"{quest_name}: 体力不足，未完成{missing - clear_count}次")
+
 @description('')
 @name("领取女神祭任务")
 @default(True)
