@@ -2034,6 +2034,10 @@ class pcrclient(apiclient):
     def is_cron_run(self):
         return self._get_key('cron_run', False)
 
+    def get_cron_time(self):
+        # 本次定时任务的触发时间 (hour, minute)，非定时任务为 None
+        return self._get_key('cron_time', None)
+
     def set_stamina_recover_cnt(self, value: int):
         self._keys['stamina_recover_times'] = value
 
@@ -2043,5 +2047,7 @@ class pcrclient(apiclient):
     def set_stamina_get_not_run(self):
         self._keys['stamina_get_not_run'] = True
 
-    def set_cron_run(self):
+    def set_cron_run(self, hour: int = None, minute: int = None):
         self._keys['cron_run'] = True
+        if hour is not None and minute is not None:
+            self._keys['cron_time'] = (hour, minute)

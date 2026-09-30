@@ -1,4 +1,4 @@
-from typing import Any, Dict, List, Set
+from typing import Any, Dict, List, Set, Tuple
 
 from ...model.common import InventoryInfo, UserMissionInfo
 from ..modulebase import *
@@ -11,6 +11,7 @@ from ...model.enums import *
 from ...util.questutils import *
 from .hatsune import prepare_event_quest
 import asyncio
+import datetime
 from ...util.format_number import format_number
 
 @description('仅开启时生效，氪体数将取满足条件的最大值，禅模式指不执行体力相关的功能，仅在清日常生效，单项执行将忽略。庆典包括其倍数，加速期间的所有倍数判断均x2')
@@ -128,11 +129,58 @@ class mission_receive_last3(mission_receive):
 _DAILY_MISSION_CONDITION = 1008
 _DAILY_MISSION_CONDITION_NUM = 20
 
+# 执行时机选项
+_RUN_TIMING_LAST_CRON = '仅最后一次定时任务'
+_RUN_TIMING_ALWAYS = '每次都执行'
+
 @description('清日常通用任务领奖前，检查最新的「通关20次」每日任务，仅补刷缺少的次数：优先最新活动最后一张可扫荡普图，其次当前开放的最后一张可扫荡N图，仅消耗当前体力（不氪体）')
 @name("补刷每日任务关卡")
 @default(False)
+@singlechoice('daily_mission_sweep_run_timing', '执行时机', _RUN_TIMING_LAST_CRON, [_RUN_TIMING_LAST_CRON, _RUN_TIMING_ALWAYS])
 @tag_stamina_consume
 class daily_mission_sweep(Module):
+
+    async def do_check(self, client: pcrclient) -> Tuple[bool, str]:
+        ok, msg = await super().do_check(client)
+        if not ok:
+            return ok, msg
+        if self.get_config('daily_mission_sweep_run_timing') == _RUN_TIMING_LAST_CRON:
+            if client is None or not client.is_cron_run():
+                return False, '仅最后一次定时任务执行，非定时任务跳过'
+            last_cron_time = await self._last_cron_time()
+            if last_cron_time is None:
+                return False, '未启用任何会执行的定时任务，无法判定最后一次'
+            if client.get_cron_time() != last_cron_time:
+                return False, '仅最后一次定时任务执行'
+        return True, ''
+
+    async def _last_cron_time(self):
+        """当天(5:00 起算)最晚一次「实际会执行」的定时任务时间 (hour, minute)。
+
+        仅看启用开关不够：is_cron_run 还要求 is_cron_condition()（会战期 clanbattle_run_cronN、
+        特别定时任务的庆典条件），否则会把今天不会触发的那次误判成「最后一次」。
+        """
+        times = []
+        for cron in self._parent.modules_list.cron_modules:
+            if not self._parent.get_config(cron.key, False):
+                continue
+            if not await cron.is_cron_condition():
+                continue
+            try:
+                hour, minute = (int(x) for x in cron.get_cron_time().split(':')[:2])
+            except (AttributeError, ValueError):
+                continue
+            times.append((hour, minute))
+        if not times:
+            return None
+        return max(times, key=self._cron_offset)
+
+    @staticmethod
+    def _cron_offset(time) -> float:
+        """相对 PCR 当天 5:00 起点的偏移（秒），用于判定当天最晚的定时任务。"""
+        hour, minute = time
+        t = datetime.datetime(2000, 1, 1, hour, minute)
+        return (t - db.get_start_time(t)).total_seconds()
 
     def _select_daily_mission(self, missions: List[UserMissionInfo],
                               daily_mission_data: Dict[int, Any]) -> UserMissionInfo:
