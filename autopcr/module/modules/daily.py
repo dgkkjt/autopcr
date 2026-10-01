@@ -457,7 +457,10 @@ class user_info(Module):
             self._log(' '.join(line_items))
 
         if role_mission_status is not None:
-            self._log(f"职能券任务{role_mission_status}")
+            if role_mission_status == "已完成，已领取":
+                self._log(f"职能券任务{role_mission_status}")
+            else:
+                self._warn(f"职能券任务{role_mission_status}")
 
     def _get_role_mission_status(self, client: pcrclient) -> str:
         mission_data = db.VIP_mission
