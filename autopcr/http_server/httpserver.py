@@ -21,7 +21,7 @@ from ..util.draw import instance as drawer
 from ..util.logger import instance as logger
 
 APP_VERSION_MAJOR = 1
-APP_VERSION_MINOR = 8
+APP_VERSION_MINOR = 9
 
 CACHE_HTTP_DIR = os.path.join(CACHE_DIR, 'http_server')
 
@@ -224,6 +224,12 @@ class HttpServer:
             data = (await request.get_json())['accs'].split('\n')
             usermgr.set_clan_battle_forbidden(data)
             return f'设置成功，禁止了{len(data)}个账号', 200
+
+        @self.api.route('/schedule', methods = ["GET"])
+        async def get_schedule():
+            """半月刊结构化日程（字段化，无账号依赖）。网页端通知与本 module 渲染共用数据源。"""
+            from ..db.database import db
+            return db.schedule_entries(), 200
 
         @self.api.route('/role', methods = ["GET"])
         @HttpServer.login_required()
