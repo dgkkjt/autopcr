@@ -346,7 +346,7 @@ class pjjc_daily(Module):
 
 _USER_INFO_DISPLAY_ORDER = (
     '玛娜', '心碎', '星球杯', '星幽碎片', '属性球', '大师碎片', '炼金点数',
-    '香水', '扫荡券', '加速券', '大师币', '连结币', '月度十连券',
+    '香水', '扫荡券', '加速券', '大师币', '连结币', '月度十连券', '职能券任务',
 )
 
 @description('展示基本信息，固定显示玩家名、体力、等级、钻石、母猪石、全角色战力，可自定义显示其他信息')
@@ -354,8 +354,8 @@ _USER_INFO_DISPLAY_ORDER = (
 @default(True)
 @multichoice(
     "user_info_display", "显示信息",
-    ['心碎', '星幽碎片', '炼金点数', '香水', '月度十连券'],
-    ['玛娜', '心碎', '星球杯', '星幽碎片', '属性球', '大师碎片', '炼金点数', '香水', '扫荡券', '加速券', '大师币', '连结币', '月度十连券']
+    ['心碎', '星幽碎片', '炼金点数', '香水', '月度十连券', '职能券任务'],
+    ['玛娜', '心碎', '星球杯', '星幽碎片', '属性球', '大师碎片', '炼金点数', '香水', '扫荡券', '加速券', '大师币', '连结币', '月度十连券', '职能券任务']
 )
 class user_info(Module):
     def _collect_optional_info(self, client: pcrclient, display_items: Set[str]) -> Dict[str, str]:
@@ -426,6 +426,7 @@ class user_info(Module):
             ),
             '连结币': lambda: str(inv((eInventoryType.Item, 90012))),
             '月度十连券': fmt_temp_tickets,
+            '职能券任务': lambda: self._get_role_mission_status(client),
         }
 
         return {
@@ -450,6 +451,28 @@ class user_info(Module):
                 for key in keys[i:i + 3]
             ]
             self._log(' '.join(line_items))
+
+    def _get_role_mission_status(self, client: pcrclient) -> str:
+        mission_data = db.VIP_mission
+        if mission_data is None:
+            return "未开放"
+
+        mission = next(
+            (
+                mission for mission in (client.data.missions or [])
+                if mission.mission_id == mission_data.daily_mission_id
+            ),
+            None,
+        )
+        if mission is None:
+            return "未获取"
+
+        if mission.mission_status == eMissionStatusType.EnableReceive:
+            return "已完成，待领取"
+        if mission.mission_status == eMissionStatusType.AlreadyReceive:
+            return "已完成，已领取"
+
+        return f"职能券任务：{mission.clear_num or 0}/{mission_data.condition_num}"
 
     async def do_task(self, client: pcrclient):
         data = client.data
