@@ -436,7 +436,11 @@ class user_info(Module):
         }
 
     def _log_optional_info(self, optional_info: Dict[str, str], pig: int) -> None:
-        keys = [k for k in _USER_INFO_DISPLAY_ORDER if k in optional_info]
+        role_mission_status = optional_info.get('职能券任务')
+        keys = [
+            k for k in _USER_INFO_DISPLAY_ORDER
+            if k in optional_info and k != '职能券任务'
+        ]
 
         line2_items = [
             f"{key}{optional_info[key]}"
@@ -451,6 +455,9 @@ class user_info(Module):
                 for key in keys[i:i + 3]
             ]
             self._log(' '.join(line_items))
+
+        if role_mission_status is not None:
+            self._log(f"职能券任务{role_mission_status}")
 
     def _get_role_mission_status(self, client: pcrclient) -> str:
         mission_data = db.VIP_mission
@@ -472,7 +479,7 @@ class user_info(Module):
         if mission.mission_status == eMissionStatusType.AlreadyReceive:
             return "已完成，已领取"
 
-        return f"职能券任务：{mission.clear_num or 0}/{mission_data.condition_num}"
+        return f"{mission.clear_num or 0}/{mission_data.condition_num}"
 
     async def do_task(self, client: pcrclient):
         data = client.data
