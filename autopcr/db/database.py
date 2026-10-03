@@ -1002,7 +1002,11 @@ class database():
         with self.dbmgr.session() as db:
             return (
                 SevenStoryDatum.query(db)
-                .where(lambda x: x.contents_type == 0 and x.story_type in (1, 2, 3))
+                .where(lambda x: (
+                    x.contents_type == 0 and x.story_type in (1, 2, 3)
+                ) or (
+                    x.contents_type == 1 and x.story_type == 5
+                ))
                 .group_by(lambda x: x.event_id)
                 .to_dict(lambda x: x.key, lambda x: sorted(x.to_list(), key=lambda y: (y.story_index, y.story_id)))
             )
