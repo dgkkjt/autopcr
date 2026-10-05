@@ -595,6 +595,8 @@ class DIY_sweep(Module):
         return []
     async def get_loop_quest(self, client: pcrclient) -> List[Tuple[int, int]]:
         return []
+    async def get_sweep_count(self, client: pcrclient, quest_id: int, count: int) -> int:
+        return count
 
     async def do_task(self, client: pcrclient):
         nloop: List[Tuple[int, int]] = await self.get_start_quest(client)
@@ -617,12 +619,23 @@ class DIY_sweep(Module):
         clean_cnt = Counter()
         for quest_id, count in _sweep(): 
             try:
-                reward, clear_count, no_stamina = await client.quest_skip_aware(quest_id, count, True, True)
+                sweep_count = await self.get_sweep_count(client, quest_id, count)
+                if sweep_count <= 0:
+                    if not clean_cnt: self._log(f"刷取{db.get_quest_name(quest_id)}体力不足")
+                    break
+                reward, clear_count, no_stamina = await client.quest_skip_aware(quest_id, sweep_count, True, True)
                 result += reward
                 if clear_count:
                     clean_cnt[quest_id] += clear_count
                 if no_stamina:
-                    if not clean_cnt: self._log(f"刷取{db.get_quest_name(quest_id)}体力不足")
+                    if clear_count:
+                        self._log(f"{db.get_quest_name(quest_id)}体力不足，按剩余体力扫荡{clear_count}次")
+                    elif not clean_cnt:
+                        self._log(f"刷取{db.get_quest_name(quest_id)}体力不足")
+                    break
+                if sweep_count < count:
+                    if clear_count:
+                        self._log(f"{db.get_quest_name(quest_id)}体力不足，按剩余体力扫荡{clear_count}次")
                     break
             except SkipError as e:
                 pass
@@ -709,6 +722,23 @@ class oldest_normal_quest_sweep(DIY_sweep):
 class TalentSweep(DIY_sweep):
     def get_recovery_areas(self) -> List[int]: ...
     def get_no_max_no_sweep_areas(self) -> List[int]: ...
+
+    async def get_sweep_count(self, client: pcrclient, quest_id: int, count: int) -> int:
+        if client.quest_skip_remaining is not None:
+            return count
+
+        talent_id = db.get_talent_id_from_quest_id(quest_id)
+        qinfo = client.data.talent_quest_area_info.get(talent_id)
+        already = qinfo.daily_clear_count if qinfo else 0
+        remain = max(0, count - already)
+        await client.ensure_stamina_for(quest_id, remain)
+        per = client.get_quest_stamina_cost(quest_id)
+        if per <= 0 or remain <= 0:
+            return count
+        available = client.data.stamina // per
+        if available <= 0:
+            return 0
+        return min(count, already + available)
 
     async def get_start_quest(self, client: pcrclient) -> List[Tuple[int, int]]:
         recovery_areas: List[int] = self.get_recovery_areas()
