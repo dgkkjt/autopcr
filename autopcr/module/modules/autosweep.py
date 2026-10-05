@@ -745,7 +745,7 @@ class TalentSweep(DIY_sweep):
         no_max_no_sweep: List[int] = self.get_no_max_no_sweep_areas()
         daily_clear_limit_count = client.data.settings.talent_quest.daily_clear_limit_count
         ret = []
-        for area_id in db.talent_quest_area_data:
+        for area_id in sorted(db.talent_quest_area_data):
             talent_id = db.talent_quest_area_data[area_id].talent_id
             talent_name = db.talents[talent_id].talent_name
             max_quest = max(db.talent_quests_data[area_id])
