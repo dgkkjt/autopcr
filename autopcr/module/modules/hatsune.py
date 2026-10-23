@@ -131,16 +131,30 @@ class hatsune_vhboss_sweep(Module):
 
             top = await client.mre_top(schedule.schedule_id)
             bosses = {boss.quest_id: boss for boss in top.boss_info_list or []}
-            vh_boss = next(
-                (bosses.get(quest.quest_id) for quest in vh_quests if quest.quest_id in bosses),
+            eligible_vh = next(
+                (
+                    (quest, bosses[quest.quest_id])
+                    for quest in vh_quests
+                    if quest.quest_id in bosses
+                    and (bosses[quest.quest_id].appear_num or 0) > 0
+                    and bosses[quest.quest_id].hp
+                    and (bosses[quest.quest_id].best_damage or 0) >= bosses[quest.quest_id].hp
+                    and not bosses[quest.quest_id].attack_num
+                ),
                 None,
             )
-            if not vh_boss or (vh_boss.appear_num or 0) <= 0 or not vh_boss.hp or (vh_boss.best_damage or 0) < vh_boss.hp:
-                self._log("尚未通关VH，不扫荡其他难度")
+            if not eligible_vh:
+                active_vh = any(
+                    boss.attack_num and (boss.appear_num or 0) > 0
+                    for quest in vh_quests
+                    if (boss := bosses.get(quest.quest_id))
+                )
+                if active_vh:
+                    self._log("VH本Boss当前有未完成的挑战，暂不扫荡")
+                else:
+                    self._log("尚未通关VH，不扫荡其他难度")
                 continue
-            if vh_boss.attack_num:
-                self._log("VH本Boss当前有未完成的挑战，暂不扫荡")
-                continue
+            vh_quest, _ = eligible_vh
 
             ticket = client.data.get_inventory((eInventoryType.Item, schedule.boss_ticket_id))
             if ticket <= 0:
@@ -151,9 +165,9 @@ class hatsune_vhboss_sweep(Module):
                 raise ValueError(f"MRE活动{schedule.schedule_id}Boss扫荡次数上限无效: {max_skip_num}")
             times = min(ticket, max_skip_num)
 
-            response = await client.mre_battle_skip(schedule.schedule_id, vh_quests[0].quest_id, times, ticket)
+            response = await client.mre_battle_skip(schedule.schedule_id, vh_quest.quest_id, times, ticket)
             is_skip = False
-            self._log(f"{vh_quests[0].name} VH扫荡{times}次")
+            self._log(f"{vh_quest.name} VH扫荡{times}次")
             rewards = (response.clear_reward_list or []) + (response.challenge_reward_list or [])
             reward_summary = await client.serialize_reward_summary(rewards)
             self._log(f"扫荡掉落：\n{reward_summary}")
