@@ -1774,6 +1774,31 @@ class pcrclient(apiclient):
             (quest in db.tower_quest and self.data.tower_status and self.data.tower_status.cleared_floor_num >= db.tower_quest[quest].floor_num)
         )
 
+    def get_quest_stamina_coefficient(self, quest: int) -> int:
+        if db.is_talent_quest(quest):
+            return 100
+        return self.data.get_quest_stamina_half_campaign_times(quest) or 100
+
+    def get_quest_stamina_cost(self, quest: int) -> int:
+        stamina_coefficient = self.get_quest_stamina_coefficient(quest)
+        return int(math.floor(db.quest_info[quest].stamina * (stamina_coefficient / 100)))
+
+    async def ensure_stamina_for(self, quest: int, times: int) -> None:
+        if not db.is_talent_quest(quest):
+            raise ValueError("ensure_stamina_for仅适用于深域关卡")
+        per = self.get_quest_stamina_cost(quest)
+        while (
+            self.data.stamina < per * times
+            and self.stamina_recover_cnt > self.data.recover_stamina_exec_count
+        ):
+            prev_stamina = self.data.stamina
+            prev_exec = self.data.recover_stamina_exec_count
+            await self.recover_stamina()
+            if self.data.recover_stamina_exec_count <= prev_exec:
+                raise AbortError("体力恢复次数未更新，停止深域扫荡")
+            if self.data.stamina <= prev_stamina:
+                break
+
     async def quest_skip_aware(self, quest: int, times: int, recover: bool = False, is_total: bool = False) -> Tuple[List[InventoryInfo], int, bool]:
         if self.quest_skip_remaining is not None and self.quest_skip_remaining <= 0:
             raise AbortError("已达扫荡次数目标")
@@ -1828,8 +1853,7 @@ class pcrclient(apiclient):
         if self.quest_skip_remaining is not None:
             times = min(times, self.quest_skip_remaining)
 
-        stamina_coefficient = self.data.get_quest_stamina_half_campaign_times(quest)
-        if not stamina_coefficient: stamina_coefficient = 100
+        stamina_coefficient = self.get_quest_stamina_coefficient(quest)
         result: List[InventoryInfo] = []
         clear_count = 0
         async def skip(times) -> Tuple[bool, List[InventoryInfo]]:
