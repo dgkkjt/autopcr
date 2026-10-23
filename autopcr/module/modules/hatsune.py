@@ -118,39 +118,45 @@ class hatsune_vhboss_sweep(Module):
                 self._log(f"{str(e)}")
         for schedule in db.get_active_mre_schedules():
             event_active = True
-            quests = sorted(
+            vh_quests = sorted(
                 (
                     quest for quest in db.mre_quest_data.get(schedule.mre_id, [])
                     if quest.difficulty == 3
                 ),
                 key=lambda quest: quest.quest_id,
             )
-            if not quests:
+            if not vh_quests:
+                self._log(f"MRE活动{schedule.schedule_id}没有VH难度Boss，不扫荡其他难度")
                 continue
 
             top = await client.mre_top(schedule.schedule_id)
             bosses = {boss.quest_id: boss for boss in top.boss_info_list or []}
+            vh_boss = next(
+                (bosses.get(quest.quest_id) for quest in vh_quests if quest.quest_id in bosses),
+                None,
+            )
+            if not vh_boss or (vh_boss.appear_num or 0) <= 0 or not vh_boss.hp or (vh_boss.best_damage or 0) < vh_boss.hp:
+                self._log("尚未通关VH，不扫荡其他难度")
+                continue
+            if vh_boss.attack_num:
+                self._log("VH本Boss当前有未完成的挑战，暂不扫荡")
+                continue
+
             ticket = client.data.get_inventory((eInventoryType.Item, schedule.boss_ticket_id))
             if ticket <= 0:
                 self._log(f"MRE活动{schedule.schedule_id}没有boss券")
                 continue
+            max_skip_num = client.data.settings.max_boss_battle_skip_num
+            if max_skip_num <= 0:
+                raise ValueError(f"MRE活动{schedule.schedule_id}Boss扫荡次数上限无效: {max_skip_num}")
+            times = min(ticket, max_skip_num)
 
-            for quest in quests:
-                boss = bosses.get(quest.quest_id)
-                if not boss or (boss.appear_num or 0) <= 0:
-                    self._log(f"{quest.name}尚未解锁")
-                    continue
-                if boss.attack_num:
-                    self._log(f"{quest.name}当前有未完成的挑战")
-                    continue
-                if not boss.hp or (boss.best_damage or 0) < boss.hp:
-                    self._log(f"{quest.name}未达成一刀击杀，无法扫荡")
-                    continue
-
-                await client.mre_battle_skip(schedule.schedule_id, quest.quest_id, 1, ticket)
-                is_skip = False
-                self._log(f"{quest.name}扫荡1次")
-                break
+            response = await client.mre_battle_skip(schedule.schedule_id, vh_quests[0].quest_id, times, ticket)
+            is_skip = False
+            self._log(f"{vh_quests[0].name} VH扫荡{times}次")
+            rewards = (response.clear_reward_list or []) + (response.challenge_reward_list or [])
+            reward_summary = await client.serialize_reward_summary(rewards)
+            self._log(f"扫荡掉落：\n{reward_summary}")
         if not event_active: raise SkipError("当前无进行中的活动")
         if is_error: raise ValueError("")
         if is_abort: raise AbortError("")
@@ -297,6 +303,7 @@ class hatsune_gacha_exchange(Module):
                 raise ValueError(f"MRE活动{schedule.schedule_id}讨伐证批量兑换设置无效: {batch_limit}")
 
             do_exchange = True
+            rewards = []
             while ticket > 0:
                 current_ticket = ticket
                 exchange_times = min(batch_limit, current_ticket)
@@ -317,10 +324,15 @@ class hatsune_gacha_exchange(Module):
                     if ticket_info and ticket_info.stock is not None
                     else current_ticket - exchange_times
                 )
+                rewards.extend(response.reward_info_list or [])
                 if ticket >= current_ticket:
                     raise ValueError(f"MRE活动{schedule.schedule_id}兑换后讨伐证数量未减少")
                 client.data.set_inventory(ticket_item, ticket)
                 self._log(f"MRE活动{schedule.schedule_id}讨伐证兑换{exchange_times}次，剩余{ticket}张")
+
+            if rewards:
+                reward_summary = await client.serialize_reward_summary(rewards)
+                self._log(f"MRE活动{schedule.schedule_id}讨伐证兑换掉落：\n{reward_summary}")
 
         if not event_active:
             raise SkipError("当前无可进入的活动")
