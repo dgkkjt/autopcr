@@ -116,6 +116,41 @@ class hatsune_vhboss_sweep(Module):
             except Exception as e: 
                 is_error = True
                 self._log(f"{str(e)}")
+        for schedule in db.get_active_mre_schedules():
+            event_active = True
+            quests = sorted(
+                (
+                    quest for quest in db.mre_quest_data.get(schedule.mre_id, [])
+                    if quest.difficulty == 3
+                ),
+                key=lambda quest: quest.quest_id,
+            )
+            if not quests:
+                continue
+
+            top = await client.mre_top(schedule.schedule_id)
+            bosses = {boss.quest_id: boss for boss in top.boss_info_list or []}
+            ticket = client.data.get_inventory((eInventoryType.Item, schedule.boss_ticket_id))
+            if ticket <= 0:
+                self._log(f"MRE活动{schedule.schedule_id}没有boss券")
+                continue
+
+            for quest in quests:
+                boss = bosses.get(quest.quest_id)
+                if not boss or (boss.appear_num or 0) <= 0:
+                    self._log(f"{quest.name}尚未解锁")
+                    continue
+                if boss.attack_num:
+                    self._log(f"{quest.name}当前有未完成的挑战")
+                    continue
+                if not boss.hp or (boss.best_damage or 0) < boss.hp:
+                    self._log(f"{quest.name}未达成一刀击杀，无法扫荡")
+                    continue
+
+                await client.mre_battle_skip(schedule.schedule_id, quest.quest_id, 1, ticket)
+                is_skip = False
+                self._log(f"{quest.name}扫荡1次")
+                break
         if not event_active: raise SkipError("当前无进行中的活动")
         if is_error: raise ValueError("")
         if is_abort: raise AbortError("")
@@ -248,6 +283,45 @@ class hatsune_gacha_exchange(Module):
             self._log(f"已交换至" + (f"第{res.event_gacha_info.gacha_step}轮" if res.event_gacha_info.gacha_step < 6 else "第六轮及以上"))
             client.data.set_inventory((eInventoryType.Item, exchange_ticket_id), ticket)
 
+        for schedule in db.get_active_mre_schedules():
+            event_active = True
+            await client.mre_gacha_index(schedule.schedule_id)
+            ticket_item = (eInventoryType.Item, schedule.gacha_ticket_id)
+            ticket = client.data.get_inventory(ticket_item)
+            if ticket <= 0:
+                self._log(f"MRE活动{schedule.schedule_id}没有讨伐证")
+                continue
+
+            batch_limit = client.data.settings.loop_box_multi_gacha_count
+            if batch_limit <= 0:
+                raise ValueError(f"MRE活动{schedule.schedule_id}讨伐证批量兑换设置无效: {batch_limit}")
+
+            do_exchange = True
+            while ticket > 0:
+                current_ticket = ticket
+                exchange_times = min(batch_limit, current_ticket)
+                response = await client.mre_gacha_exec_multiple(
+                    schedule.schedule_id,
+                    exchange_times,
+                    current_ticket,
+                )
+                ticket_info = next(
+                    (
+                        item for item in response.reward_info_list or []
+                        if item.type == ticket_item[0] and item.id == ticket_item[1]
+                    ),
+                    None,
+                )
+                ticket = (
+                    ticket_info.stock
+                    if ticket_info and ticket_info.stock is not None
+                    else current_ticket - exchange_times
+                )
+                if ticket >= current_ticket:
+                    raise ValueError(f"MRE活动{schedule.schedule_id}兑换后讨伐证数量未减少")
+                client.data.set_inventory(ticket_item, ticket)
+                self._log(f"MRE活动{schedule.schedule_id}讨伐证兑换{exchange_times}次，剩余{ticket}张")
+
         if not event_active:
             raise SkipError("当前无可进入的活动")
 
@@ -293,6 +367,21 @@ class hatsune_mission_accept_base(Module):
             except Exception as e:
                 is_error = True
                 self._log(f"{str(e)}")
+
+        for schedule in db.get_active_mre_schedules():
+            event_active = True
+            missions = await client.mre_mission_index(schedule.schedule_id)
+            mission_ids = [
+                mission.mission_id for mission in missions.missions or []
+                if mission.mission_status == eMissionStatusType.EnableReceive
+            ]
+            if not mission_ids:
+                continue
+
+            response = await client.mre_mission_receive(schedule.schedule_id, mission_ids)
+            reward = await client.serialize_reward_summary(response.reward_list or [])
+            self._log(f"MRE活动{schedule.schedule_id}领取了任务奖励，获得了:\n{reward}")
+            is_skip = False
 
         if not event_active: raise SkipError("当前无进行中的活动")
         if is_error: raise ValueError("")
