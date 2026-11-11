@@ -75,18 +75,21 @@ class HttpServer:
         secret_path = os.path.join(CACHE_DIR, '.secret_key')
         secret_key = ''
         try:
-            with open(secret_path, 'r') as f:
+            with open(secret_path, 'r', encoding='utf-8') as f:
                 secret_key = f.read().strip()
-        except Exception:
-            pass
-        if not secret_key:
+        except FileNotFoundError:
             secret_key = secrets.token_urlsafe(32)
             try:
                 os.makedirs(CACHE_DIR, exist_ok=True)
-                with open(secret_path, 'w') as f:
+                with open(secret_path, 'w', encoding='utf-8') as f:
                     f.write(secret_key)
-            except Exception:
-                pass  # 写不进则退回进程内随机：仅重启掉登录，不影响服务
+            except OSError:
+                logger.exception('无法持久化网页会话签名密钥，本次使用临时密钥，重启后需要重新登录')
+        except (OSError, UnicodeError):
+            secret_key = ''
+        if not secret_key:
+            logger.warning('无法读取有效的网页会话签名密钥，保留原文件并使用临时密钥，重启后需要重新登录')
+            secret_key = secrets.token_urlsafe(32)
         self.quart.secret_key = secret_key
 
         self.app.register_blueprint(self.web)

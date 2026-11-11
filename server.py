@@ -45,7 +45,7 @@ app = nonebot.get_bot().server_app
 QuartAuth(app, cookie_secure=False)
 RateLimiter(app)
 Compress(app)
-app.secret_key = secrets.token_urlsafe(16) # cookie expires when reboot
+app.secret_key = server.quart.secret_key
 app.register_blueprint(server.app)
 
 prefix = '#'
