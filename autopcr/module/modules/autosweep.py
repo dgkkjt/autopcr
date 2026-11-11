@@ -407,6 +407,9 @@ unique_equip_2_pure_memory_id = [
         117201, # 水望
         117301, # 水千
         117401, # 水裁
+        117801, # 瓜扇
+        117701, # 瓜狗
+        117901, # 瓜爆
 ]
 @conditional_not_execution1("vh_sweep_not_run_time", ["n3", "n4及以上"])
 @conditional_execution1("very_hard_sweep_run_time", ["vh庆典"])
