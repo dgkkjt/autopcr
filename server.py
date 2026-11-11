@@ -472,7 +472,7 @@ async def regist_magic_link(botev: BotEvent):
     if qq not in usermgr.qids():
         await botev.finish(f"未找到{qq}的账号，请发送【{prefix}配置日常】进行配置")
     try:
-        expire_seconds = 60
+        expire_seconds = 120
         token = secrets.token_urlsafe(32)
         tokens = _load_one_time_tokens()
         tokens[token] = {"qid": str(qq), "expires_at": int(time.time()) + expire_seconds, "used": False}
@@ -480,7 +480,7 @@ async def regist_magic_link(botev: BotEvent):
 
         # address 在本文件顶部定义，已包含 /daily/ 结尾
         url = address + 'api/one_time_login?token=' + token
-        msg = f"点击下方链接在 {expire_seconds} 秒内登录并修改密码：\n{url}"
+        msg = f"点击下方链接在 {expire_seconds} 秒内打开链接并点击“确认登录”，登录后请修改密码：\n{url}"
         await botev.send(msg)
     except Exception as e:
         logger.exception(e)

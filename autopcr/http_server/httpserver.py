@@ -595,9 +595,9 @@ data: {ret}\n\n'''
             data = await request.get_json() or {}
             qq = data.get('qq', None)
             try:
-                expire_seconds = int(data.get('expire_seconds', 600))
+                expire_seconds = int(data.get('expire_seconds', 120))
             except Exception:
-                expire_seconds = 600
+                expire_seconds = 120
 
             # target qid: if qq provided, only superuser/admin can generate for others
             if qq:
@@ -620,10 +620,13 @@ data: {ret}\n\n'''
             url = request.host_url.rstrip('/') + '/daily/api/one_time_login?token=' + token
             return {"url": url, "expires_at": expires_at}, 200
 
-        @self.api.route('/one_time_login', methods=['GET'])
+        @self.api.route('/one_time_login', methods=['GET', 'POST'])
         async def one_time_login():
-            """通过一次性 token 登录，token 仅可使用一次且有过期时间。"""
-            token = request.args.get('token', '')
+            """GET 只展示确认页，POST 才消耗 token，避免链接预览提前登录。"""
+            if request.method == 'POST':
+                token = (await request.form).get('token', '')
+            else:
+                token = request.args.get('token', '')
             if not token:
                 return "缺少 token", 400
             tokens = _load_one_time_tokens()
@@ -636,6 +639,25 @@ data: {ret}\n\n'''
                 tokens.pop(token, None)
                 _save_one_time_tokens(tokens)
                 return "链接不可用或已过期", 400
+
+            if request.method != 'POST':
+                page = await quart.render_template_string("""<!doctype html>
+<html lang="zh-CN">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>确认登录</title>
+</head>
+<body>
+    <h1>一次性登录</h1>
+    <p>点击下方按钮完成登录。链接仅可登录一次，请勿转发。</p>
+    <form method="post" action="{{ action }}">
+        <input type="hidden" name="token" value="{{ token }}">
+        <button type="submit">确认登录</button>
+    </form>
+</body>
+</html>""", action=request.path, token=token)
+                return page, 200, {'Cache-Control': 'no-store', 'Referrer-Policy': 'no-referrer'}
 
             # mark used and persist
             info['used'] = True
