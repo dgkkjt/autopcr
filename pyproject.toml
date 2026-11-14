@@ -22,6 +22,11 @@ dependencies = [
     "dataclasses-json>=0.6.4,<0.7",
     "pulp>=2.8.0,<3",
     "bili-ticket-gt-python>=0.2.7,<0.4"
+    "gtlv>=0.1.2,<0.2",
+    "pygtrie>=2.5,<3",
+    "zhconv>=1.4.3,<2",
+    "numpy~=1.26.4",
+    "onnxruntime>=1.19,<2",
 ]
 
 [build-system]
