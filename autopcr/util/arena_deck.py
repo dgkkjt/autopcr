@@ -61,6 +61,48 @@ async def read_arena_attack_deck(client):
         raise DeckReadbackError("load/index：" + str(error)) from None
 
 
+def numbered_decks(decks, numbers, source):
+    """Require every requested slot from one response, without silent overwrites."""
+    selected = [[deck for deck in (decks or []) if getattr(deck, "deck_number", None) == number]
+                for number in numbers]
+    invalid = [str(int(number)) for number, matches in zip(numbers, selected) if len(matches) != 1]
+    if invalid:
+        raise DeckReadbackError(f"{source} 缺少或重复公主竞技场进攻队伍编号：" + ",".join(invalid))
+    try:
+        return [deck_units(matches[0]) for matches in selected]
+    except ValueError as error:
+        raise DeckReadbackError(source + "：" + str(error)) from None
+
+
+async def read_grand_arena_attack_decks(client, count):
+    numbers = [getattr(ePartyType, f"GRAND_ARENA_{i + 1}") for i in range(count)]
+    try:
+        info = await client.get_grand_arena_info()
+    except asyncio.CancelledError:
+        raise
+    except Exception as error:
+        raise DeckReadbackError(f"grand_arena/info 读取失败（{type(error).__name__}）") from None
+
+    try:
+        return numbered_decks(getattr(info, "attack_deck_list", None), numbers, "grand_arena/info")
+    except DeckReadbackError as error:
+        primary_reason = str(error)
+
+    try:
+        fresh = await client.request(LoadIndexRequest(carrier="OPPO"))
+    except asyncio.CancelledError:
+        raise
+    except Exception as error:
+        raise DeckReadbackError(
+            f"{primary_reason}；load/index 读取失败（{type(error).__name__}）"
+        ) from None
+    # Never mix the primary response or local cache with this new snapshot.
+    try:
+        return numbered_decks(getattr(fresh, "deck_list", None), numbers, "load/index")
+    except DeckReadbackError as error:
+        raise DeckReadbackError(primary_reason + "；" + str(error)) from None
+
+
 async def update_counterattack_deck(task, client, recommendations, pjjc=False):
     from ..db.database import db
 
@@ -146,10 +188,7 @@ async def update_counterattack_deck(task, client, recommendations, pjjc=False):
 
     try:
         if pjjc:
-            info = await client.get_grand_arena_info()
-            current = {deck.deck_number: deck for deck in (info.attack_deck_list or [])}
-            observed = [deck_units(current[getattr(ePartyType, f"GRAND_ARENA_{i + 1}")])
-                        for i in range(len(teams))]
+            observed = await read_grand_arena_attack_decks(client, len(teams))
         else:
             observed = [await read_arena_attack_deck(client)]
         if observed == teams:
