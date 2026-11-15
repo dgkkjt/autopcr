@@ -22,7 +22,7 @@ async def query_counterattack(task, available, defend, multi=False, account_data
             safe_errors = (TrainingError, RecommendationError)
             from .arena_mzq import get_attack, get_multi_attack
             snapshot = build_snapshot(account_data, available)
-            task._log("查询来源：mzq（我方账号练度模拟，保留自动五星；敌方满练；EX沿用模拟器配置；10次至少8胜）")
+            task._log("查询来源：mzq（角色满练；Rank、深域及精通按账号；保留自动五星；敌方满练；EX沿用模拟器配置；10次至少8胜）")
             result = await (get_multi_attack(available, defend, snapshot) if multi
                             else get_attack(available, defend, snapshot))
             if result:

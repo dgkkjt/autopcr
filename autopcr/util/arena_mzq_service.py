@@ -26,7 +26,7 @@ from .arena_training import (TrainingError, TrainingSnapshot, ActualArenaQueryRe
                              actual_player, assert_formal_units, validate_template, digest as training_digest)
 
 log = logging.getLogger(__name__)
-VALIDATION_VERSION = 2
+VALIDATION_VERSION = 3
 REPEAT_COUNT = 10
 MIN_WINS = 8
 
@@ -87,7 +87,7 @@ class Recommendation:
             atk=[ArenaQueryUnit(id=uid, equip=False, star=snapshot.units[uid]['rarity']) for uid in self.attack],
             up=self.wins, down=REPEAT_COUNT - self.wins, query_type=ArenaQueryType.MZQ,
             comment=[ArenaQueryComment(id="mzq", date="", avatar=0, msg=(
-                f"我方账号练度模拟，保留自动五星；敌方满练；EX沿用模拟器配置；胜率{self.wins / REPEAT_COUNT:.0%}；"
+                f"角色满练；Rank、深域及精通按账号；保留自动五星；敌方满练；EX沿用模拟器配置；胜率{self.wins / REPEAT_COUNT:.0%}；"
                 f"{self.wins}胜({self.mean_win_seconds:.1f}s) {losses}负 {timeouts}超时；"
                 f"{'缓存' if cached else '模拟'}时间：{stamp}"
             ))],
@@ -141,7 +141,7 @@ def combine_recommendations(groups, stop=None):
 class CounterattackService:
     def __init__(self, cache_path=None, model_dir=None, history_path=None,
                  endpoint_provider=None, identity_provider=None):
-        self.cache_path = Path(cache_path or Path(CACHE_DIR) / "arena_mzq" / "recommendations-v2.sqlite3")
+        self.cache_path = Path(cache_path or Path(CACHE_DIR) / "arena_mzq" / "recommendations-v3.sqlite3")
         self.model_dir = Path(model_dir or Path(DATA_DIR) / "jjc")
         self.history_path = Path(history_path or Path(CACHE_DIR) / "jjc_server" / "jjc_record.sqlite3")
         self.endpoint_provider = endpoint_provider or self._endpoint
@@ -240,7 +240,7 @@ class CounterattackService:
         self.cache_path.parent.mkdir(parents=True, exist_ok=True)
         conn = sqlite3.connect(str(self.cache_path), timeout=1)
         conn.execute("PRAGMA busy_timeout=1000")
-        conn.execute("""CREATE TABLE IF NOT EXISTS recommendations_v2 (
+        conn.execute("""CREATE TABLE IF NOT EXISTS recommendations_v3 (
             context TEXT NOT NULL, defend TEXT NOT NULL, attack TEXT NOT NULL,
             completed_at REAL NOT NULL, payload TEXT NOT NULL, metadata TEXT NOT NULL,
             PRIMARY KEY(context, defend, attack))""")
@@ -250,7 +250,7 @@ class CounterattackService:
         now = time.time()
         records = []
         with closing(self._connect()) as conn:
-            rows = conn.execute("SELECT payload,completed_at,attack,metadata FROM recommendations_v2 WHERE context=? AND defend=? ORDER BY rowid",
+            rows = conn.execute("SELECT payload,completed_at,attack,metadata FROM recommendations_v3 WHERE context=? AND defend=? ORDER BY rowid",
                                 (context, json.dumps(defend))).fetchall()
         for payload, timestamp, attack_key, metadata in rows:
             try:
@@ -282,7 +282,7 @@ class CounterattackService:
                 for record in records:
                     state.check()
                     payload = dict(attack=record.attack, defend=record.defend, samples=record.samples)
-                    conn.execute("""INSERT INTO recommendations_v2 VALUES (?,?,?,?,?,?)
+                    conn.execute("""INSERT INTO recommendations_v3 VALUES (?,?,?,?,?,?)
                         ON CONFLICT(context,defend,attack) DO UPDATE SET
                         completed_at=excluded.completed_at,payload=excluded.payload,metadata=excluded.metadata""", (
                         context, json.dumps(record.defend), json.dumps(record.attack), record.completed_at,
@@ -547,7 +547,7 @@ class CounterattackService:
         session_id = self._unknown_contexts.setdefault(unknown_key, uuid.uuid4().hex)
         metadata = dict(model=digest, endpoint_digest=hashlib.sha256(endpoint.encode()).hexdigest(),
                         parameters=self._battle_request([], [], snapshot, {}), validation=VALIDATION_VERSION,
-                        mode='account-training-auto-five-star', training=snapshot.fingerprint,
+                        mode='max-training-actual-rank-progression-auto-five-star', training=snapshot.fingerprint,
                         engine_data=identity, process=None if identity else self._process_id,
                         session=None if identity else session_id)
         template_context = training_digest([endpoint, identity, digest, params,

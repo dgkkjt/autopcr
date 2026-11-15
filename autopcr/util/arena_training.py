@@ -1,4 +1,4 @@
-"""Immutable account training snapshots used only by counterattack simulation."""
+"""Account Rank/star/progression overrides on simulator max-training templates."""
 
 import hashlib
 import json
@@ -45,101 +45,22 @@ def effective_rarity(unit):
     return 5 if owned == 5 else (battle or owned)
 
 
-def skill_level(items, index, name, preferred_ids=()):
-    if items is None or len(items) <= index:
-        raise TrainingError(f'账号练度：{name}数据缺失')
-    for skill_id in preferred_ids:
-        matches = [item for item in items if skill_id and getattr(item, 'skill_id', None) == skill_id]
-        if matches:
-            if len({item.skill_level for item in matches}) != 1:
-                raise TrainingError(f'账号练度：{name}生效形态等级不明确')
-            return integer(matches[0].skill_level, name)
-    if preferred_ids and any(getattr(item, 'skill_id', None) is not None for item in items):
-        raise TrainingError(f'账号练度：{name}技能ID与生效形态不匹配')
-    slots = [getattr(item, 'slot_number', None) for item in items]
-    if all(isinstance(slot, int) and not isinstance(slot, bool) for slot in slots):
-        offset = (min(slots) // 100 * 100 + 1 if min(slots) >= 100
-                  else 0 if min(slots) == 0 else 1)
-        matches = [item for item in items if item.slot_number == index + offset]
-        if not matches or len({item.skill_level for item in matches}) != 1:
-            raise TrainingError(f'账号练度：{name}槽位不明确')
-        item = matches[0]
-    else:
-        raise TrainingError(f'账号练度：{name}槽位数据缺失')
-    return integer(item.skill_level, name)
-
-
-def love_dictionary(data, database, uid):
-    if data.read_story_ids is None or data.unit_love_data is None:
-        raise TrainingError('账号练度：好感或已读剧情数据缺失')
-    read = set(data.read_story_ids)
-    grouped = {}
-    for status in database.chara2story.get(uid, []):
-        if not any(getattr(status, f'status_rate_{i}', 0) for i in range(1, 6)):
-            continue
-        detail = database.story_detail.get(status.story_id)
-        if detail is None:
-            raise TrainingError('账号练度：羁绊剧情数据库缺失')
-        owner = integer(detail.requirement_id, '羁绊角色ID', 1)
-        level = integer(detail.love_level, '剧情好感门槛', 0, 12)
-        grouped.setdefault(owner, []).append((level, status.story_id in read))
-    result = {}
-    for owner, stories in grouped.items():
-        achieved = max((level for level, is_read in stories if is_read), default=0)
-        love = data.unit_love_data.get(owner // 100)
-        if achieved and (love is None or integer(love.love_level, '好感等级', 0, 12) < achieved):
-            raise TrainingError('账号练度：已读剧情与好感数据不一致')
-        if any(level <= achieved and not is_read for level, is_read in stories):
-            raise TrainingError('账号练度：非连续羁绊不能用模拟器好感等级准确表示')
-        result[str(owner)] = achieved
-    return result
-
-
 def unit_payload(data, database, uid):
+    """Only account-controlled overrides; all other fields come from max templates."""
     unit = data.unit[uid]
     if unit.id != uid:
         raise TrainingError('账号练度：角色数据ID不一致')
-    equipment = unit.equip_slot
-    if equipment is None or len(equipment) != 6:
-        raise TrainingError('账号练度：普通装备必须包含六个槽位')
-    equip_levels = []
-    for slot in equipment:
-        if slot.is_slot not in (True, False) or slot.is_slot is None:
-            raise TrainingError('账号练度：装备穿戴状态缺失')
-        equip_levels.append(integer(slot.enhancement_level, '装备强化', 0, 5) if slot.is_slot else -1)
-    unique = unit.unique_equip_slot
-    if unique is None:
-        raise TrainingError('账号练度：专武数据缺失')
-
-    def unique_level(index, absent):
-        if len(unique) <= index:
-            return absent
-        slot = unique[index]
-        if slot.is_slot is None or slot.is_slot not in (True, False):
-            raise TrainingError('账号练度：专武穿戴状态缺失')
-        return integer(slot.enhancement_level, '专武强化', 0) if slot.is_slot else absent
-
-    rarity = effective_rarity(unit)
-    definition = database.unit_skill_data.get(uid)
-    if definition is None:
-        raise TrainingError('账号练度：技能形态数据库缺失')
-
-    def skill(items, index, name, base, evolved, active):
-        base_id = getattr(definition, base, 0)
-        evolved_id = getattr(definition, evolved, 0) if active else 0
-        return skill_level(items, index, name, (evolved_id, base_id))
-
-    return {
-        'unitId': uid, 'level': integer(unit.unit_level, '等级', 1),
-        'rank': integer(unit.promotion_level, 'Rank', 1), 'rarity': rarity,
-        'equipLevel': equip_levels,
-        'skillLevel': [skill(unit.union_burst, 0, 'UB', 'union_burst', 'union_burst_evolution', rarity == 6),
-                       skill(unit.main_skill, 0, 'S1', 'main_skill_1', 'main_skill_evolution_1', unique_level(0, 0) > 0),
-                       skill(unit.main_skill, 1, 'S2', 'main_skill_2', 'main_skill_evolution_2', unique_level(1, -1) >= 0),
-                       skill(unit.ex_skill, 0, 'EX被动', 'ex_skill_1', 'ex_skill_evolution_1', rarity >= 5)],
-        'uniqueEqLv': unique_level(0, 0), 'uniqueEq2Lv': unique_level(1, -1),
-        'playLoveDic': love_dictionary(data, database, uid),
-    }
+    rank = integer(unit.promotion_level, 'Rank', 1)
+    promotion = database.unit_promotion.get(uid, {}).get(rank)
+    if promotion is None:
+        raise TrainingError(f'账号练度：Rank{rank}的装备数据库缺失')
+    equipment = []
+    for index in range(1, 7):
+        equip_id = integer(getattr(promotion, f'equip_slot_{index}'), 'Rank装备ID')
+        equipment.append(-1 if equip_id in (0, 999999) else integer(
+            database.get_equip_max_star(equip_id), 'Rank装备满强化', 0, 5))
+    return {'unitId': uid, 'rank': rank, 'rarity': effective_rarity(unit),
+            'equipLevel': equipment}
 
 
 def progression_payload(data, database):
@@ -187,7 +108,7 @@ class TrainingSnapshot:
 
     @property
     def fingerprint(self):
-        return digest([self.units_json, self.progression_json])
+        return digest(['max-actual-rank-progression-v1', self.units_json, self.progression_json])
 
     def matches(self, data, database=None):
         try:
@@ -225,7 +146,8 @@ def build_snapshot(data, available, database=None):
 
 EX_FIELDS = ('exEquip', 'exEquipLevel', 'exEquipSubs')
 CORE_FIELDS = ('unitId', 'level', 'rarity', 'rank', 'equipLevel', 'skillLevel',
-               'uniqueEqLv', 'uniqueEq2Lv', 'playLoveDic')
+               'uniqueEqLv', 'uniqueEq2Lv', 'playLoveDic', 'connectRank',
+               'connectRankLimit', 'uniqueEqPlus', 'uniqueEq2Plus')
 
 
 def validate_template(unit):
@@ -245,6 +167,10 @@ def validate_template(unit):
         raise TrainingError('满练预热：技能等级未按满练处理')
     integer(unit['uniqueEqLv'], '模板专武一', -1)
     integer(unit['uniqueEq2Lv'], '模板专武二', -1)
+    integer(unit['connectRank'], '模板连结Rank')
+    integer(unit['connectRankLimit'], '模板连结Rank上限')
+    if any(type(unit[field]) is not bool for field in ('uniqueEqPlus', 'uniqueEq2Plus')):
+        raise TrainingError('满练预热：专武SP+状态不完整')
     if not isinstance(unit['playLoveDic'], dict) or not isinstance(unit['exEquipSubs'], dict):
         raise TrainingError('满练预热：羁绊或EX副属性格式不正确')
     if set(unit['exEquipSubs']) != {'0', '1', '2'}:
@@ -262,8 +188,10 @@ def validate_template(unit):
 
 
 def actual_player(snapshot, uid, template, units=None):
-    player = json.loads(canonical((snapshot.units if units is None else units)[uid]))
-    player.update({field: json.loads(canonical(template[field])) for field in EX_FIELDS})
+    player = json.loads(canonical(template))
+    player.update(json.loads(canonical((snapshot.units if units is None else units)[uid])))
+    # Re-select combat prefab after applying the preserved battle-star rule.
+    player['PrefabId'] = 0
     return player
 
 
