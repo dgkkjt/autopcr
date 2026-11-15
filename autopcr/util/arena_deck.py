@@ -9,11 +9,56 @@ from ..model.requests import LoadIndexRequest
 from .arena_support import valid_team
 
 
+class DeckReadbackError(Exception):
+    """Readback diagnostics containing field names, never raw account responses."""
+
+
 def deck_units(deck):
+    if deck is None:
+        raise ValueError("未返回进攻队伍")
     values = [getattr(deck, f"unit_id_{i}", None) for i in range(1, 6)]
-    if any(type(value) is not int or value < 0 for value in values):
-        raise ValueError("队伍数据缺失")
+    invalid = [f"unit_id_{i}" for i, value in enumerate(values, 1)
+               if type(value) is not int or value < 0]
+    if invalid:
+        raise ValueError("进攻队伍缺少有效槽位字段：" + ",".join(invalid))
     return values
+
+
+async def read_arena_attack_deck(client):
+    """Prefer arena/info; missing deck data requires an independent fresh read.
+
+    client.data.deck_list cannot verify a write: DeckUpdateResponse updates that
+    local cache from the submitted request, even without echoing server state.
+    """
+    try:
+        info = await client.get_arena_info()
+    except asyncio.CancelledError:
+        raise
+    except Exception as error:
+        raise DeckReadbackError(f"arena/info 读取失败（{type(error).__name__}）") from None
+
+    try:
+        return deck_units(getattr(info, "attack_deck", None))
+    except ValueError:
+        pass
+
+    try:
+        fresh = await client.request(LoadIndexRequest(carrier="OPPO"))
+    except asyncio.CancelledError:
+        raise
+    except Exception as error:
+        raise DeckReadbackError(
+            f"arena/info 未返回完整进攻队伍；load/index 读取失败（{type(error).__name__}）"
+        ) from None
+
+    decks = [deck for deck in (getattr(fresh, "deck_list", None) or [])
+             if getattr(deck, "deck_number", None) == ePartyType.ARENA]
+    if len(decks) != 1:
+        raise DeckReadbackError("arena/info 未返回完整进攻队伍；load/index 缺少唯一的竞技场进攻队伍")
+    try:
+        return deck_units(decks[0])
+    except ValueError as error:
+        raise DeckReadbackError("load/index：" + str(error)) from None
 
 
 async def update_counterattack_deck(task, client, recommendations, pjjc=False):
@@ -106,12 +151,14 @@ async def update_counterattack_deck(task, client, recommendations, pjjc=False):
             observed = [deck_units(current[getattr(ePartyType, f"GRAND_ARENA_{i + 1}")])
                         for i in range(len(teams))]
         else:
-            observed = [deck_units((await client.get_arena_info()).attack_deck)]
+            observed = [await read_arena_attack_deck(client)]
         if observed == teams:
             task._log("编队读回：确认目标队伍已生效")
         else:
             task._warn("编队读回：当前队伍与目标不一致，可能存在并发修改；不自动重试或回滚")
     except asyncio.CancelledError:
         raise
-    except Exception:
-        task._warn("编队读回失败：" + ("提交已确认，当前队伍未验证" if acknowledged else "提交结果仍未知"))
+    except Exception as error:
+        reason = str(error) if isinstance(error, DeckReadbackError) else type(error).__name__
+        task._warn("编队读回失败：" + ("提交已确认，当前队伍未验证" if acknowledged else "提交结果仍未知")
+                   + "；原因：" + reason)
