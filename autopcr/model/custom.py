@@ -216,6 +216,7 @@ class ArenaQueryType(Enum):
     NORMAL = 0
     APPROXIMATION = 1
     PLACEHOLDER = 2
+    MZQ = 3
 
 class ArenaQueryUnit(BaseModel):
     equip: bool 

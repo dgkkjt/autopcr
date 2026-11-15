@@ -1,0 +1,524 @@
+"""Counterattack-only orchestration; never calls the shared JJC recommender."""
+
+import asyncio
+import hashlib
+import json
+import logging
+import math
+import os
+import sqlite3
+import time
+import uuid
+import weakref
+from concurrent.futures import ThreadPoolExecutor
+from contextlib import closing
+from dataclasses import dataclass
+from datetime import datetime
+from pathlib import Path
+from threading import Event
+
+import aiohttp
+
+from ..constants import CACHE_DIR, DATA_DIR
+from ..model.custom import ArenaQueryComment, ArenaQueryResult, ArenaQueryType, ArenaQueryUnit
+from .arena_support import top_combinations, valid_team
+
+log = logging.getLogger(__name__)
+VALIDATION_VERSION = 1
+REPEAT_COUNT = 10
+MIN_WINS = 8
+
+
+class RecommendationError(Exception):
+    """Sanitized stage-specific failure suitable for a user log."""
+
+
+def configured_seconds(name, default):
+    try:
+        value = float(os.getenv(name, str(default)))
+        if not math.isfinite(value) or value <= 0:
+            raise ValueError()
+        return value
+    except ValueError:
+        raise RecommendationError(f"配置：{name} 必须为正数") from None
+
+
+@dataclass
+class RequestState:
+    deadline: float
+    stop: Event
+
+    def check(self):
+        if self.stop.is_set() or time.monotonic() >= self.deadline:
+            raise RecommendationError("超时：mzq阶段预算已耗尽")
+
+
+@dataclass(frozen=True)
+class Recommendation:
+    attack: tuple
+    defend: tuple
+    samples: tuple
+    completed_at: float
+
+    @property
+    def wins(self):
+        return sum(status == 0 for status, _, _ in self.samples)
+
+    @property
+    def mean_win_seconds(self):
+        durations = [frames / 60 for status, frames, _ in self.samples if status == 0]
+        return sum(durations) / len(durations) if durations else float("inf")
+
+    @property
+    def rank(self):
+        return -self.wins / REPEAT_COUNT, self.mean_win_seconds
+
+    @property
+    def legacy_rank(self):
+        return -(self.wins / REPEAT_COUNT * 10_000_000 - self.mean_win_seconds)
+
+    def result(self, cached=False):
+        losses = sum(status == 1 for status, _, _ in self.samples)
+        timeouts = sum(status == 2 for status, _, _ in self.samples)
+        stamp = datetime.fromtimestamp(self.completed_at).strftime("%Y-%m-%d %H:%M:%S")
+        return ArenaQueryResult(
+            atk=[ArenaQueryUnit(id=uid, equip=False, star=5) for uid in self.attack],
+            up=self.wins, down=REPEAT_COUNT - self.wins, query_type=ArenaQueryType.MZQ,
+            comment=[ArenaQueryComment(id="mzq", date="", avatar=0, msg=(
+                f"满练模拟，胜率{self.wins / REPEAT_COUNT:.0%}；"
+                f"{self.wins}胜({self.mean_win_seconds:.1f}s) {losses}负 {timeouts}超时；"
+                f"{'缓存' if cached else '模拟'}时间：{stamp}"
+            ))],
+        )
+
+
+def validate_response(item, attack, defend, completed_at=None):
+    """Validate raw JSON before coercion, qualification or persistence."""
+    if not isinstance(item, dict) or item.get("Success") is not True:
+        raise RecommendationError("模拟响应：候选未成功完成")
+    fields = [item.get(name) for name in ("ResultList", "BattleFramesList", "CurrentSeedList")]
+    if any(not isinstance(values, list) or len(values) != REPEAT_COUNT for values in fields):
+        raise RecommendationError("模拟协议：重复结果、帧数和种子必须各有10项")
+    statuses, frames, seeds = fields
+    if any(type(x) is not int or x not in (0, 1, 2) for x in statuses):
+        raise RecommendationError("模拟协议：存在未知或非法胜负状态")
+    if any(type(x) is not int or not 0 <= x <= 90 * 60 for x in frames):
+        raise RecommendationError("模拟协议：帧数超出60fps、90秒契约")
+    if any(type(x) is not int for x in seeds):
+        raise RecommendationError("模拟协议：种子必须为整数")
+    for name, expected in (("PlayerList", attack), ("EnemyList", defend)):
+        if item.get(name):
+            try:
+                echoed = [unit["unitId"] for unit in item[name]]
+            except (TypeError, KeyError):
+                raise RecommendationError("模拟协议：返回队伍格式错误") from None
+            if sorted(echoed) != sorted(expected):
+                raise RecommendationError("模拟协议：返回队伍与请求不符")
+    return Recommendation(tuple(attack), tuple(defend), tuple(zip(*fields)),
+                          time.time() if completed_at is None else completed_at)
+
+
+def combine_recommendations(groups, stop=None):
+    durations = {id(record): tuple(frames / 60 for status, frames, _ in record.samples if status == 0)
+                 for group in groups for record in group}
+    legacy = {id(record): record.legacy_rank for group in groups for record in group}
+    def transform(group):
+        ids = [uid for record in group for uid in record.attack]
+        return group if len(ids) == len(set(ids)) else None
+
+    def key(group):
+        wins = [value for record in group for value in durations[id(record)]]
+        return (-len(wins) / (REPEAT_COUNT * len(group)), sum(wins) / len(wins),
+                sum(legacy[id(record)] for record in group))
+
+    return top_combinations(groups, key, 9, stop, transform)
+
+
+class CounterattackService:
+    def __init__(self, cache_path=None, model_dir=None, history_path=None,
+                 endpoint_provider=None, identity_provider=None):
+        self.cache_path = Path(cache_path or Path(CACHE_DIR) / "arena_mzq" / "recommendations-v1.sqlite3")
+        self.model_dir = Path(model_dir or Path(DATA_DIR) / "jjc")
+        self.history_path = Path(history_path or Path(CACHE_DIR) / "jjc_server" / "jjc_record.sqlite3")
+        self.endpoint_provider = endpoint_provider or self._endpoint
+        # A verified identity must identify BOTH engine and data. No URL heuristic.
+        self.identity_provider = identity_provider or (lambda endpoint: None)
+        self._cpu = ThreadPoolExecutor(max_workers=1, thread_name_prefix="arena-mzq-model")
+        self._db = ThreadPoolExecutor(max_workers=1, thread_name_prefix="arena-mzq-db")
+        self._cpu_gate = asyncio.Lock()
+        self._db_gate = asyncio.Lock()
+        self._http_gate = asyncio.Semaphore(3)
+        self._build_locks = weakref.WeakValueDictionary()
+        self._unknown_contexts = {}
+        self._process_id = uuid.uuid4().hex
+        self._model = None
+        self._model_digest = None
+
+    @staticmethod
+    def _endpoint():
+        from ..mzq.mzq import instance
+        return instance.simulate_url
+
+    async def close(self):
+        await asyncio.to_thread(self._cpu.shutdown, wait=True, cancel_futures=True)
+        await asyncio.to_thread(self._db.shutdown, wait=True, cancel_futures=True)
+
+    async def _work(self, executor, gate, state, function, *args, drain=False):
+        await gate.acquire()
+        owns_gate = True
+        try:
+            state.check()
+
+            def run():
+                state.check()
+                return function(*args)
+
+            future = asyncio.get_running_loop().run_in_executor(executor, run)
+            try:
+                return await asyncio.shield(future)
+            except asyncio.CancelledError:
+                state.stop.set()
+                if drain:
+                    while not future.done():
+                        try:
+                            await asyncio.shield(future)
+                        except asyncio.CancelledError:
+                            continue
+                        except Exception:
+                            break
+                    if future.done() and not future.cancelled():
+                        future.exception()
+                else:
+                    owns_gate = False
+
+                    def finished(done):
+                        if not done.cancelled():
+                            done.exception()
+                        gate.release()
+
+                    future.add_done_callback(finished)
+                raise
+        finally:
+            if owns_gate:
+                gate.release()
+
+    async def _cpu_work(self, state, function, *args):
+        return await self._work(self._cpu, self._cpu_gate, state, function, *args)
+
+    async def _db_work(self, state, function, *args):
+        return await self._work(self._db, self._db_gate, state, function, *args, drain=True)
+
+    def _bundle(self):
+        manifest_bytes = (self.model_dir / "manifest.json").read_bytes()
+        manifest = json.loads(manifest_bytes)
+        hashes = {}
+        for name, expected in manifest["files"].items():
+            if name not in {"generator.onnx", "critic.onnx", "vocabulary.json"}:
+                raise RecommendationError("模型校验：清单包含未知文件")
+            actual = hashlib.sha256((self.model_dir / name).read_bytes()).hexdigest()
+            if actual != expected:
+                raise RecommendationError(f"模型校验：{name} SHA256不匹配")
+            hashes[name] = actual
+        if set(hashes) != {"generator.onnx", "critic.onnx", "vocabulary.json"}:
+            raise RecommendationError("模型校验：模型包不完整")
+        return hashlib.sha256(manifest_bytes + json.dumps(hashes, sort_keys=True).encode()).hexdigest()
+
+    def _load_model(self, digest):
+        from ..jjc_server.onnx_model_manager import JJCModelManager
+        if self._model is None or digest != self._model_digest:
+            self._model = JJCModelManager(self.model_dir / "generator.onnx", self.model_dir / "critic.onnx")
+            self._model_digest = digest
+        self._model.load()
+
+    def _connect(self):
+        self.cache_path.parent.mkdir(parents=True, exist_ok=True)
+        conn = sqlite3.connect(str(self.cache_path), timeout=1)
+        conn.execute("PRAGMA busy_timeout=1000")
+        conn.execute("""CREATE TABLE IF NOT EXISTS recommendations_v1 (
+            context TEXT NOT NULL, defend TEXT NOT NULL, attack TEXT NOT NULL,
+            completed_at REAL NOT NULL, payload TEXT NOT NULL, metadata TEXT NOT NULL,
+            PRIMARY KEY(context, defend, attack))""")
+        return conn
+
+    def _read(self, context, defend, available, ttl):
+        now = time.time()
+        records = []
+        with closing(self._connect()) as conn:
+            rows = conn.execute("SELECT payload,completed_at,attack,metadata FROM recommendations_v1 WHERE context=? AND defend=? ORDER BY rowid",
+                                (context, json.dumps(defend))).fetchall()
+        for payload, timestamp, attack_key, metadata in rows:
+            try:
+                if not math.isfinite(timestamp) or not 0 <= now - timestamp <= ttl:
+                    continue
+                data = json.loads(payload)
+                attack = tuple(data["attack"])
+                if (tuple(json.loads(attack_key)) != attack
+                        or hashlib.sha256(json.dumps(json.loads(metadata), sort_keys=True).encode()).hexdigest() != context
+                        or any(not isinstance(sample, list) or len(sample) != 3 for sample in data['samples'])):
+                    continue
+                if tuple(data["defend"]) != tuple(defend) or not valid_team(attack, available):
+                    continue
+                item = dict(Success=True, ResultList=[v[0] for v in data["samples"]],
+                            BattleFramesList=[v[1] for v in data["samples"]],
+                            CurrentSeedList=[v[2] for v in data["samples"]])
+                record = validate_response(item, attack, defend, timestamp)
+                if record.wins >= MIN_WINS:
+                    records.append(record)
+            except (ValueError, TypeError, KeyError, IndexError, RecommendationError):
+                log.warning("忽略损坏的回刺缓存记录")
+        return sorted(records, key=lambda record: record.rank)
+
+    def _write(self, state, context, metadata, records):
+        with closing(self._connect()) as conn:
+            try:
+                state.check()
+                conn.execute("BEGIN IMMEDIATE")
+                for record in records:
+                    state.check()
+                    payload = dict(attack=record.attack, defend=record.defend, samples=record.samples)
+                    conn.execute("""INSERT INTO recommendations_v1 VALUES (?,?,?,?,?,?)
+                        ON CONFLICT(context,defend,attack) DO UPDATE SET
+                        completed_at=excluded.completed_at,payload=excluded.payload,metadata=excluded.metadata""", (
+                        context, json.dumps(record.defend), json.dumps(record.attack), record.completed_at,
+                        json.dumps(payload), json.dumps(metadata, sort_keys=True),
+                    ))
+                state.check()
+                conn.commit()
+            except BaseException:
+                conn.rollback()
+                raise
+
+    def _history(self, defend, available):
+        if not self.history_path.is_file():
+            return [], []
+        conn = sqlite3.connect(self.history_path.resolve().as_uri() + "?mode=ro", uri=True, timeout=1)
+        try:
+            conn.execute("PRAGMA query_only=ON")
+            deadline = time.monotonic() + 1
+            conn.set_progress_handler(lambda: int(time.monotonic() >= deadline), 1000)
+            tables = {row[0] for row in conn.execute("SELECT name FROM sqlite_master WHERE type='table'")}
+            result_tables = [name for name in ("jjc_results", "jjc_results_buffer_b", "jjc_results_buffer_c") if name in tables]
+            if "jjc_teams" not in tables or not result_tables:
+                return [], []
+            team_columns = ",".join(f"a.unit_{i}" for i in range(1, 6))
+            # Inputs are integer IDs; literals avoid SQLite's parameter limit.
+            in_list = ",".join(map(str, sorted(available))) or "NULL"
+            owned = " AND ".join(f"a.unit_{i} IN ({in_list})" for i in range(1, 6))
+            union = " UNION ALL ".join(f"SELECT * FROM {name}" for name in result_tables)
+            def take_valid(cursor):
+                result = []
+                for row in cursor:
+                    attack = tuple(row[:5])
+                    if valid_team(attack, available):
+                        result.append(attack)
+                        if len(result) == 10:
+                            break
+                return result
+
+            defend_match = " AND ".join(f"d.unit_{i}=?" for i in range(1, 6))
+            exact = take_valid(conn.execute(f"""SELECT {team_columns},
+                SUM(r.win_0_15+r.win_15_30+r.win_30_60+r.win_60_90) AS wins,
+                SUM(r.win_0_15+r.win_15_30+r.win_30_60+r.win_60_90+r.losses+r.timeouts) AS runs
+                FROM ({union}) r JOIN jjc_teams a ON a.team_id=r.attack_team_id
+                JOIN jjc_teams d ON d.team_id=r.defend_team_id
+                WHERE {owned} AND {defend_match} GROUP BY r.attack_team_id HAVING wins>0
+                ORDER BY CAST(wins AS REAL)/runs DESC,wins DESC,runs DESC,r.attack_team_id""", defend))
+            hot = take_valid(conn.execute(f"""SELECT {team_columns},
+                SUM(r.win_0_15+r.win_15_30+r.win_30_60+r.win_60_90+r.losses+r.timeouts) AS runs
+                FROM ({union}) r JOIN jjc_teams a ON a.team_id=r.attack_team_id
+                WHERE {owned} AND r.last_battle_ts>=? GROUP BY r.attack_team_id
+                ORDER BY runs DESC,r.attack_team_id""", (time.time() - 7 * 86400,)))
+            return exact, hot
+        except sqlite3.Error:
+            log.warning("历史候选：只读读取失败，继续使用模型")
+            return [], []
+        finally:
+            conn.close()
+
+    def _candidates(self, state, digest, defend, available, history):
+        state.check()
+        self._load_model(digest)
+        if not self._model.supports_team(defend):
+            raise RecommendationError("角色支持：模型不支持该防守")
+        roster = sorted(uid for uid in available if self._model.vocabulary.contains(uid))
+        if len(roster) < 5:
+            raise RecommendationError("角色不足：账号与模型词表交集不足5人")
+        exact, hot = history
+        generated = self._model.recall(defend, "fast_attack", roster=roster,
+                                       candidate_count=256, generation_batch_size=64)
+        state.check()
+        exact = [team for team in exact if valid_team(team, available)][:10]
+        other = list(dict.fromkeys(tuple(sorted(team)) for team in [*hot, *generated]
+                                  if valid_team(team, available) and self._model.supports_team(team)))
+        other = [team for team in other if team not in exact]
+        if other:
+            _, scores = self._model.rank(other, defend, "fast_attack")
+            other = [other[index] for index in sorted(range(len(other)), key=lambda i: -float(scores[i]))][:54]
+        state.check()
+        return list(dict.fromkeys([*exact, *other]))[:64]
+
+    async def _simulate(self, session, endpoint, state, candidates, defend):
+        from ..jjc_server.simulation_config import build_battle_request
+        async with self._http_gate:
+            state.check()
+            body = [build_battle_request(attack, defend, REPEAT_COUNT) for attack in candidates]
+            try:
+                timeout = aiohttp.ClientTimeout(total=max(.001, state.deadline - time.monotonic()))
+                async with session.post(endpoint, json=body, timeout=timeout) as response:
+                    response.raise_for_status()
+                    data = await response.json(content_type=None)
+            except asyncio.CancelledError:
+                raise
+            except Exception:
+                raise RecommendationError("模拟连接：HTTP、超时或响应解析失败") from None
+        state.check()
+        if not isinstance(data, list) or len(data) != len(candidates):
+            raise RecommendationError("模拟协议：顶层响应数量与请求不一致")
+        records, errors = [], []
+        for attack, item in zip(candidates, data):
+            try:
+                record = validate_response(item, attack, defend)
+                if record.wins >= MIN_WINS:
+                    records.append(record)
+            except RecommendationError as error:
+                errors.append(str(error))
+        return records, errors
+
+    async def query(self, available, defends):
+        available = frozenset(available)
+        if any(type(uid) is not int or uid <= 0 for uid in available):
+            raise RecommendationError("角色输入：角色池包含非法ID")
+        defends = [tuple(sorted(defend)) for defend in defends]
+        if not 1 <= len(defends) <= 3 or any(not valid_team(d, set(d)) for d in defends):
+            raise RecommendationError("防守输入：需要完整的5人不同角色队伍")
+        seconds = configured_seconds("AUTOPCR_ARENA_MZQ_TIMEOUT", 60)
+        state = RequestState(time.monotonic() + seconds, Event())
+        collected = [[] for _ in defends]
+        cached_attacks = [set() for _ in defends]
+        outcome = {'ttl': 300}
+        endpoint = str(self.endpoint_provider())
+        errors = []
+        groups = None
+        try:
+            await asyncio.wait_for(self._query(state, endpoint, available, defends, collected,
+                                             cached_attacks, errors, outcome), seconds)
+            # Successful queries include combination work in the mzq budget.
+            if len(defends) > 1:
+                remaining = state.deadline - time.monotonic()
+                if remaining <= 0:
+                    raise asyncio.TimeoutError()
+                groups = await asyncio.wait_for(self._cpu_work(
+                    state, combine_recommendations, [group[:64] for group in collected], state.stop), remaining)
+        except asyncio.CancelledError:
+            state.stop.set()
+            raise
+        except asyncio.TimeoutError:
+            errors.append("超时：mzq阶段预算已耗尽")
+        except RecommendationError as error:
+            errors.append(str(error))
+        except (OSError, ValueError, KeyError, sqlite3.Error):
+            errors.append("模型或缓存：加载、校验或数据库访问失败")
+            log.exception("回刺推荐阶段失败")
+        finally:
+            state.stop.set()
+        if errors:
+            log.warning("回刺mzq：%s", "; ".join(dict.fromkeys(errors)))
+        # A cache row may have expired while refresh was running.
+        for index, records in enumerate(collected):
+            fresh_enough = [record for record in records
+                            if 0 <= time.time() - record.completed_at <= outcome['ttl']]
+            if len(fresh_enough) != len(records):
+                groups = None
+            collected[index][:] = fresh_enough
+        if groups is None:
+            # Bounded recovery from already validated partial results. Cooperative
+            # cancellation also applies while presenting these surviving results.
+            stop = Event()
+            future = asyncio.create_task(asyncio.to_thread(
+                combine_recommendations, [group[:64] for group in collected], stop)) if len(defends) > 1 else None
+            try:
+                groups = ([[record] for record in sorted(collected[0], key=lambda r: r.rank)]
+                          if future is None else await asyncio.shield(future))
+            finally:
+                stop.set()
+                if future is not None and not future.done():
+                    await asyncio.shield(future)
+        if not groups:
+            raise RecommendationError("；".join(dict.fromkeys(errors)) if errors else "无解：没有完整的不重复可用方案")
+        result = [[record.result(record.attack in cached_attacks[index]) for index, record in enumerate(group)]
+                  for group in groups]
+        if errors:
+            result[0][0].comment[0].msg += '；刷新提示：' + '；'.join(dict.fromkeys(errors))
+        return result
+
+    async def _query(self, state, endpoint, available, defends, collected, cached_attacks, errors, outcome):
+        from ..jjc_server.simulation_config import build_battle_request
+        digest = await self._cpu_work(state, self._bundle)
+        params = build_battle_request([], [], REPEAT_COUNT)
+        identity = self.identity_provider(endpoint)
+        unknown_key = (endpoint, digest, json.dumps(params, sort_keys=True))
+        if getattr(self, '_last_environment', None) != unknown_key:
+            self._unknown_contexts.clear()
+            self._last_environment = unknown_key
+        session_id = self._unknown_contexts.setdefault(unknown_key, uuid.uuid4().hex)
+        metadata = dict(model=digest, endpoint_digest=hashlib.sha256(endpoint.encode()).hexdigest(),
+                        parameters=params, validation=VALIDATION_VERSION,
+                        engine_data=identity, process=None if identity else self._process_id,
+                        session=None if identity else session_id)
+        context = hashlib.sha256(json.dumps(metadata, sort_keys=True).encode()).hexdigest()
+        ttl = 15 * 86400 if identity else 300
+        outcome['ttl'] = ttl
+
+        async def defend_query(index, defend, session):
+            lock_key = (context, defend, tuple(sorted(available)))
+            lock = self._build_locks.setdefault(lock_key, asyncio.Lock())
+            async with lock:
+                records = await self._db_work(state, self._read, context, defend, available, ttl)
+                collected[index].extend(records)
+                cached_attacks[index].update(record.attack for record in records)
+                if len(records) >= 16:
+                    return
+                history = await self._db_work(state, self._history, defend, available)
+                try:
+                    candidates = await self._cpu_work(state, self._candidates, state, digest, defend, available, history)
+                except RecommendationError:
+                    raise
+                except Exception as error:
+                    log.warning("回刺模型推理失败：%s", type(error).__name__)
+                    raise RecommendationError("模型推理：加载或候选生成失败") from None
+                candidates = [team for team in candidates if valid_team(team, available)]
+                if not candidates:
+                    return
+                fresh, invalid = await self._simulate(session, endpoint, state, candidates, defend)
+                errors.extend(invalid)
+                if invalid and not identity:
+                    self._unknown_contexts.pop(unknown_key, None)
+                merged = {record.attack: record for record in records}
+                merged.update((record.attack, record) for record in fresh)
+                collected[index][:] = sorted(merged.values(), key=lambda record: record.rank)
+                cached_attacks[index].difference_update(record.attack for record in fresh)
+                if fresh:
+                    await self._db_work(state, self._write, state, context, metadata, fresh)
+
+        async with aiohttp.ClientSession() as session:
+            tasks = [asyncio.create_task(defend_query(index, defend, session)) for index, defend in enumerate(defends)]
+            try:
+                await asyncio.gather(*tasks)
+            except BaseException as error:
+                if (not identity and isinstance(error, RecommendationError)
+                        and str(error).startswith(('模拟连接', '模拟协议'))):
+                    self._unknown_contexts.pop(unknown_key, None)
+                for task in tasks:
+                    task.cancel()
+                await asyncio.gather(*tasks, return_exceptions=True)
+                raise
+
+
+_services = weakref.WeakKeyDictionary()
+
+
+def get_service():
+    loop = asyncio.get_running_loop()
+    if loop not in _services:
+        _services[loop] = CounterattackService()
+    return _services[loop]

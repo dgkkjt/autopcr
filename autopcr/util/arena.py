@@ -191,7 +191,7 @@ class ArenaQuery:
             logger.debug(f'不存在它服缓存')
         return result
 
-    async def get_attack(self, available_unit: Set[int], defen: List[int], region : ArenaRegion = ArenaRegion.CN) -> List[ArenaQueryResult]:
+    async def get_attack(self, available_unit: Set[int], defen: List[int], region : ArenaRegion = ArenaRegion.CN, *, strict=False) -> List[ArenaQueryResult]:
         result = []
 
         if len(defen) < 4:
@@ -218,6 +218,9 @@ class ArenaQuery:
                         result = await self.get_approximate_attack(defen, region)
 
         result = [team for team in result if all(unit.id in available_unit for unit in team.atk)]
+        if strict:
+            from .arena_support import valid_team
+            result = [team for team in result if valid_team([unit.id for unit in team.atk], available_unit)]
         result = sorted(result, key=lambda x: self.attack_score(x), reverse=True)
         return result
 
@@ -227,13 +230,29 @@ class ArenaQuery:
         ret.query_type = ArenaQueryType.PLACEHOLDER
         return ret
 
-    def replace_placeholder(self, available_unit: Set[int], teams: List[ArenaQueryResult]) -> List[ArenaQueryResult]:
+    def replace_placeholder(self, available_unit: Set[int], teams: List[ArenaQueryResult], *, strict=False) -> List[ArenaQueryResult]:
         placeholder = [index for index, value in enumerate(teams) if value == PLACEHOLDER]
         if len(placeholder) != 1:
             raise ValueError("仅支持替换一个占位符")
         placeholder = placeholder[0]
 
         candidate_unit = available_unit - set(unit.id for team in teams for unit in team.atk)
+        if strict:
+            from .arena_support import valid_team
+            if len(candidate_unit) < 5:
+                raise ValueError("可用角色不足以补齐占位队伍")
+            cached = []
+            for key in tuple(self.buffer):
+                try:
+                    units = self.anti_key(key)[0]
+                    if valid_team(units, candidate_unit):
+                        cached.append(units)
+                except (ValueError, TypeError, IndexError):
+                    continue
+            candidates = choice(cached) if cached else sample(sorted(candidate_unit), 5)
+            teams = list(teams)
+            teams[placeholder] = self.build_placeholder_result(candidates)
+            return teams
         candidates = [key for key in self.buffer if all(unit_id in candidate_unit for unit_id in self.anti_key(key)[0])]
         if candidates:
             candidates = self.anti_key(choice((candidates)))[0]
@@ -245,7 +264,39 @@ class ArenaQuery:
     def have_placeholder(self, teams: List[ArenaQueryResult]) -> bool:
         return PLACEHOLDER in teams
 
-    async def get_multi_attack(self, available_unit: Set[int], defens: List[List[int]], region : ArenaRegion = ArenaRegion.CN) -> List[List[ArenaQueryResult]]:
+    async def get_multi_attack(self, available_unit: Set[int], defens: List[List[int]], region : ArenaRegion = ArenaRegion.CN, *, limit=None, strict=False) -> List[List[ArenaQueryResult]]:
+        if limit is not None:
+            from threading import Event
+            from .arena_support import top_combinations, valid_team
+            attacks = [await self.get_attack(available_unit, defen, region, strict=strict) + [PLACEHOLDER] for defen in defens]
+            # Snapshot mutable cache keys before moving work to a thread.
+            from copy import copy
+            worker = copy(self)
+            worker.buffer = dict(self.buffer)
+            stop = Event()
+            scores = {id(team): self.attack_score(team) for group in attacks for team in group}
+
+            def transform(group):
+                ids = [unit.id for team in group for unit in team.atk]
+                if len(ids) != len(set(ids)):
+                    return None
+                if strict and any(team != PLACEHOLDER and not valid_team([unit.id for unit in team.atk], available_unit) for team in group):
+                    return None
+                try:
+                    return worker.replace_placeholder(available_unit, list(group), strict=strict) if worker.have_placeholder(group) else group
+                except ValueError:
+                    return None
+
+            def key(group):
+                return -sum(scores[id(team)] if id(team) in scores else self.attack_score(team) for team in group)
+
+            future = asyncio.create_task(asyncio.to_thread(top_combinations, attacks, key, limit, stop, transform))
+            try:
+                return await asyncio.shield(future)
+            finally:
+                stop.set()
+                if not future.done():
+                    await asyncio.shield(future)
         attacks = [await self.get_attack(available_unit, defen, region) + [PLACEHOLDER] for defen in defens]
         from itertools import product
         cartesian = product(*attacks)
@@ -269,6 +320,8 @@ class ArenaQuery:
                 tail += f"(近似解)"
             elif ret.query_type == ArenaQueryType.PLACEHOLDER:
                 tail = f"凑解"
+            elif ret.query_type == ArenaQueryType.MZQ:
+                tail = f"mzq模拟 {ret.up}胜/{ret.down}未胜"
             comment = '\n'.join([f"  | {db.format_date(db.parse_time(c.date)) if c.date else ''}: {c.msg.strip()}" for c in ret.comment[:3] if c.msg.strip()]) if ret.comment else "  | 无评论"
             msg += f'''{head}【{" ".join([db.get_unit_name(unit.id) for unit in ret.atk])}】 {tail}
 {comment}

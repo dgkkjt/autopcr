@@ -1308,12 +1308,19 @@ class JJCRecordManager:
         *,
         defend_mode: bool = False,
         limit: Optional[int] = 10,
+        available_units: Iterable[int] | None = None,
     ) -> List[List[JJCRecord]]:
         """Combine cached per-defense results without caching final PJJC groups."""
         started = time.perf_counter()
         records = await asyncio.gather(
             *(self.get_attack_recommendations(defend) for defend in defends)
         )
+        if available_units is not None:
+            available = {self._normalize_unit_id(uid) for uid in available_units}
+            records = [
+                [record for record in group if set(record.attacks) <= available]
+                for group in records
+            ]
         log_stage("pjjc_defenses", started, teams=len(defends),
                   counts=",".join(str(len(group)) for group in records))
         started = time.perf_counter()
