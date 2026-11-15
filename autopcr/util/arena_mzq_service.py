@@ -22,9 +22,11 @@ import aiohttp
 from ..constants import CACHE_DIR, DATA_DIR
 from ..model.custom import ArenaQueryComment, ArenaQueryResult, ArenaQueryType, ArenaQueryUnit
 from .arena_support import top_combinations, valid_team
+from .arena_training import (TrainingError, TrainingSnapshot, ActualArenaQueryResult,
+                             actual_player, assert_formal_units, validate_template, digest as training_digest)
 
 log = logging.getLogger(__name__)
-VALIDATION_VERSION = 1
+VALIDATION_VERSION = 2
 REPEAT_COUNT = 10
 MIN_WINS = 8
 
@@ -77,19 +79,21 @@ class Recommendation:
     def legacy_rank(self):
         return -(self.wins / REPEAT_COUNT * 10_000_000 - self.mean_win_seconds)
 
-    def result(self, cached=False):
+    def result(self, snapshot, cached=False):
         losses = sum(status == 1 for status, _, _ in self.samples)
         timeouts = sum(status == 2 for status, _, _ in self.samples)
         stamp = datetime.fromtimestamp(self.completed_at).strftime("%Y-%m-%d %H:%M:%S")
-        return ArenaQueryResult(
-            atk=[ArenaQueryUnit(id=uid, equip=False, star=5) for uid in self.attack],
+        result = ActualArenaQueryResult(
+            atk=[ArenaQueryUnit(id=uid, equip=False, star=snapshot.units[uid]['rarity']) for uid in self.attack],
             up=self.wins, down=REPEAT_COUNT - self.wins, query_type=ArenaQueryType.MZQ,
             comment=[ArenaQueryComment(id="mzq", date="", avatar=0, msg=(
-                f"满练模拟，胜率{self.wins / REPEAT_COUNT:.0%}；"
+                f"我方账号练度模拟，保留自动五星；敌方满练；EX沿用模拟器配置；胜率{self.wins / REPEAT_COUNT:.0%}；"
                 f"{self.wins}胜({self.mean_win_seconds:.1f}s) {losses}负 {timeouts}超时；"
                 f"{'缓存' if cached else '模拟'}时间：{stamp}"
             ))],
         )
+        result._training_snapshot = snapshot
+        return result
 
 
 def validate_response(item, attack, defend, completed_at=None):
@@ -137,7 +141,7 @@ def combine_recommendations(groups, stop=None):
 class CounterattackService:
     def __init__(self, cache_path=None, model_dir=None, history_path=None,
                  endpoint_provider=None, identity_provider=None):
-        self.cache_path = Path(cache_path or Path(CACHE_DIR) / "arena_mzq" / "recommendations-v1.sqlite3")
+        self.cache_path = Path(cache_path or Path(CACHE_DIR) / "arena_mzq" / "recommendations-v2.sqlite3")
         self.model_dir = Path(model_dir or Path(DATA_DIR) / "jjc")
         self.history_path = Path(history_path or Path(CACHE_DIR) / "jjc_server" / "jjc_record.sqlite3")
         self.endpoint_provider = endpoint_provider or self._endpoint
@@ -150,6 +154,8 @@ class CounterattackService:
         self._http_gate = asyncio.Semaphore(3)
         self._build_locks = weakref.WeakValueDictionary()
         self._unknown_contexts = {}
+        self._templates = {}
+        self._template_lock = asyncio.Lock()
         self._process_id = uuid.uuid4().hex
         self._model = None
         self._model_digest = None
@@ -234,7 +240,7 @@ class CounterattackService:
         self.cache_path.parent.mkdir(parents=True, exist_ok=True)
         conn = sqlite3.connect(str(self.cache_path), timeout=1)
         conn.execute("PRAGMA busy_timeout=1000")
-        conn.execute("""CREATE TABLE IF NOT EXISTS recommendations_v1 (
+        conn.execute("""CREATE TABLE IF NOT EXISTS recommendations_v2 (
             context TEXT NOT NULL, defend TEXT NOT NULL, attack TEXT NOT NULL,
             completed_at REAL NOT NULL, payload TEXT NOT NULL, metadata TEXT NOT NULL,
             PRIMARY KEY(context, defend, attack))""")
@@ -244,7 +250,7 @@ class CounterattackService:
         now = time.time()
         records = []
         with closing(self._connect()) as conn:
-            rows = conn.execute("SELECT payload,completed_at,attack,metadata FROM recommendations_v1 WHERE context=? AND defend=? ORDER BY rowid",
+            rows = conn.execute("SELECT payload,completed_at,attack,metadata FROM recommendations_v2 WHERE context=? AND defend=? ORDER BY rowid",
                                 (context, json.dumps(defend))).fetchall()
         for payload, timestamp, attack_key, metadata in rows:
             try:
@@ -276,7 +282,7 @@ class CounterattackService:
                 for record in records:
                     state.check()
                     payload = dict(attack=record.attack, defend=record.defend, samples=record.samples)
-                    conn.execute("""INSERT INTO recommendations_v1 VALUES (?,?,?,?,?,?)
+                    conn.execute("""INSERT INTO recommendations_v2 VALUES (?,?,?,?,?,?)
                         ON CONFLICT(context,defend,attack) DO UPDATE SET
                         completed_at=excluded.completed_at,payload=excluded.payload,metadata=excluded.metadata""", (
                         context, json.dumps(record.defend), json.dumps(record.attack), record.completed_at,
@@ -357,11 +363,9 @@ class CounterattackService:
         state.check()
         return list(dict.fromkeys([*exact, *other]))[:64]
 
-    async def _simulate(self, session, endpoint, state, candidates, defend):
-        from ..jjc_server.simulation_config import build_battle_request
+    async def _post(self, session, endpoint, state, body):
         async with self._http_gate:
             state.check()
-            body = [build_battle_request(attack, defend, REPEAT_COUNT) for attack in candidates]
             try:
                 timeout = aiohttp.ClientTimeout(total=max(.001, state.deadline - time.monotonic()))
                 async with session.post(endpoint, json=body, timeout=timeout) as response:
@@ -372,22 +376,101 @@ class CounterattackService:
             except Exception:
                 raise RecommendationError("模拟连接：HTTP、超时或响应解析失败") from None
         state.check()
-        if not isinstance(data, list) or len(data) != len(candidates):
+        if not isinstance(data, list) or len(data) != len(body):
             raise RecommendationError("模拟协议：顶层响应数量与请求不一致")
+        return data
+
+    async def _warm_templates(self, session, endpoint, state, context, required, defend):
+        """Only completed, validated templates are shared; each caller owns its HTTP work."""
+        from ..jjc_server.simulation_config import build_battle_request
+        async with self._template_lock:
+            state.check()
+            now = time.monotonic()
+            # Also prune obsolete environments so endpoint/profile churn is bounded.
+            self._templates = {key: value for key, value in self._templates.items()
+                               if key[0] == context and now - value[0] < 300}
+            missing = [uid for uid in sorted(required) if (context, uid) not in self._templates]
+            requests = []
+            for start in range(0, len(missing), 5):
+                team = missing[start:start + 5]
+                team += [uid for uid in sorted(required) if uid not in team][:5 - len(team)]
+                request = build_battle_request(team, defend, 1)
+                # RepeatCount>1 is cloned through Json.NET, which supplies these
+                # constructor defaults. Warmup uses one run: initialize explicitly
+                # so its auto-EX result has the same structure as normal repeats.
+                for unit in request['PlayerList'] + request['EnemyList']:
+                    unit['exEquipSubs'] = {str(slot): [0] * 8 for slot in range(3)}
+                requests.append(request)
+            started = time.monotonic()
+            obtained = {}
+            try:
+                for start in range(0, len(requests), 64):
+                    batch = requests[start:start + 64]
+                    data = await self._post(session, endpoint, state, batch)
+                    for request, item in zip(batch, data):
+                        if not isinstance(item, dict) or item.get('Success') is not True:
+                            raise TrainingError('满练预热：候选未成功完成')
+                        for field in ('PlayerList', 'EnemyList'):
+                            rows = item.get(field)
+                            expected = {row['unitId'] for row in request[field]}
+                            if (not isinstance(rows, list) or len(rows) != 5
+                                    or any(not isinstance(row, dict) for row in rows)
+                                    or {row.get('unitId') for row in rows} != expected):
+                                raise TrainingError('满练预热：返回角色ID或数量不一致')
+                            for row in rows:
+                                template = validate_template(row)
+                                uid = template['unitId']
+                                if uid in obtained and obtained[uid] != template:
+                                    raise TrainingError('满练预热：同一角色返回不一致的模板')
+                                obtained[uid] = template
+                state.check()
+                stamp = time.monotonic()
+                self._templates.update({(context, uid): (stamp, template) for uid, template in obtained.items()})
+            except BaseException:
+                self._templates.clear()
+                raise
+            log.info('回刺满练模板预热：%d项，%d个HTTP批次，%.3f秒', len(requests),
+                     (len(requests) + 63) // 64, time.monotonic() - started)
+            return {uid: json.loads(json.dumps(self._templates[(context, uid)][1])) for uid in required}
+
+    @staticmethod
+    def _battle_request(attack, defend, snapshot, templates, units=None):
+        from ..jjc_server.simulation_config import build_battle_request
+        request = build_battle_request(attack, defend, REPEAT_COUNT)
+        request['ToMaxUnitAttr'] = False
+        request['PlayerList'] = [actual_player(snapshot, uid, templates[uid], units) for uid in attack]
+        request['EnemyList'] = [json.loads(json.dumps(templates[uid])) for uid in defend]
+        for field, value in snapshot.progression.items():
+            request['Enemy' + field] = request[field]
+            request[field] = value
+        return request
+
+    async def _simulate(self, session, endpoint, state, candidates, defend, snapshot, templates):
+        def build():
+            units = snapshot.units
+            return [self._battle_request(attack, defend, snapshot, templates, units) for attack in candidates]
+        body = await self._cpu_work(state, build)
+        data = await self._post(session, endpoint, state, body)
         records, errors = [], []
-        for attack, item in zip(candidates, data):
+        for attack, request, item in zip(candidates, body, data):
             try:
                 record = validate_response(item, attack, defend)
+                assert_formal_units(item, request['PlayerList'], request['EnemyList'])
                 if record.wins >= MIN_WINS:
                     records.append(record)
-            except RecommendationError as error:
+            except (RecommendationError, TrainingError) as error:
                 errors.append(str(error))
         return records, errors
 
-    async def query(self, available, defends):
+    async def query(self, available, defends, snapshot=None):
+        if not isinstance(snapshot, TrainingSnapshot):
+            raise RecommendationError('账号练度：缺少本次查询的不可变练度快照')
         available = frozenset(available)
         if any(type(uid) is not int or uid <= 0 for uid in available):
             raise RecommendationError("角色输入：角色池包含非法ID")
+        available = available.intersection(snapshot.units)
+        if len(available) < 5:
+            raise RecommendationError('账号练度：可用角色不足5人')
         defends = [tuple(sorted(defend)) for defend in defends]
         if not 1 <= len(defends) <= 3 or any(not valid_team(d, set(d)) for d in defends):
             raise RecommendationError("防守输入：需要完整的5人不同角色队伍")
@@ -401,7 +484,7 @@ class CounterattackService:
         groups = None
         try:
             await asyncio.wait_for(self._query(state, endpoint, available, defends, collected,
-                                             cached_attacks, errors, outcome), seconds)
+                                             cached_attacks, errors, outcome, snapshot), seconds)
             # Successful queries include combination work in the mzq budget.
             if len(defends) > 1:
                 remaining = state.deadline - time.monotonic()
@@ -414,7 +497,7 @@ class CounterattackService:
             raise
         except asyncio.TimeoutError:
             errors.append("超时：mzq阶段预算已耗尽")
-        except RecommendationError as error:
+        except (RecommendationError, TrainingError) as error:
             errors.append(str(error))
         except (OSError, ValueError, KeyError, sqlite3.Error):
             errors.append("模型或缓存：加载、校验或数据库访问失败")
@@ -445,13 +528,13 @@ class CounterattackService:
                     await asyncio.shield(future)
         if not groups:
             raise RecommendationError("；".join(dict.fromkeys(errors)) if errors else "无解：没有完整的不重复可用方案")
-        result = [[record.result(record.attack in cached_attacks[index]) for index, record in enumerate(group)]
+        result = [[record.result(snapshot, record.attack in cached_attacks[index]) for index, record in enumerate(group)]
                   for group in groups]
         if errors:
             result[0][0].comment[0].msg += '；刷新提示：' + '；'.join(dict.fromkeys(errors))
         return result
 
-    async def _query(self, state, endpoint, available, defends, collected, cached_attacks, errors, outcome):
+    async def _query(self, state, endpoint, available, defends, collected, cached_attacks, errors, outcome, snapshot):
         from ..jjc_server.simulation_config import build_battle_request
         digest = await self._cpu_work(state, self._bundle)
         params = build_battle_request([], [], REPEAT_COUNT)
@@ -459,13 +542,16 @@ class CounterattackService:
         unknown_key = (endpoint, digest, json.dumps(params, sort_keys=True))
         if getattr(self, '_last_environment', None) != unknown_key:
             self._unknown_contexts.clear()
+            self._templates.clear()
             self._last_environment = unknown_key
         session_id = self._unknown_contexts.setdefault(unknown_key, uuid.uuid4().hex)
         metadata = dict(model=digest, endpoint_digest=hashlib.sha256(endpoint.encode()).hexdigest(),
-                        parameters=params, validation=VALIDATION_VERSION,
+                        parameters=self._battle_request([], [], snapshot, {}), validation=VALIDATION_VERSION,
+                        mode='account-training-auto-five-star', training=snapshot.fingerprint,
                         engine_data=identity, process=None if identity else self._process_id,
                         session=None if identity else session_id)
-        context = hashlib.sha256(json.dumps(metadata, sort_keys=True).encode()).hexdigest()
+        template_context = training_digest([endpoint, identity, digest, params,
+                                            None if identity else session_id])
         ttl = 15 * 86400 if identity else 300
         outcome['ttl'] = ttl
 
@@ -489,10 +575,11 @@ class CounterattackService:
                 candidates = [team for team in candidates if valid_team(team, available)]
                 if not candidates:
                     return
-                fresh, invalid = await self._simulate(session, endpoint, state, candidates, defend)
+                fresh, invalid = await self._simulate(session, endpoint, state, candidates, defend, snapshot, templates)
                 errors.extend(invalid)
                 if invalid and not identity:
                     self._unknown_contexts.pop(unknown_key, None)
+                    self._templates.clear()
                 merged = {record.attack: record for record in records}
                 merged.update((record.attack, record) for record in fresh)
                 collected[index][:] = sorted(merged.values(), key=lambda record: record.rank)
@@ -501,6 +588,15 @@ class CounterattackService:
                     await self._db_work(state, self._write, state, context, metadata, fresh)
 
         async with aiohttp.ClientSession() as session:
+            try:
+                templates = await self._warm_templates(session, endpoint, state, template_context,
+                    set(available).union(*defends), defends[0])
+            except BaseException:
+                if not identity:
+                    self._unknown_contexts.pop(unknown_key, None)
+                raise
+            metadata['templates'] = training_digest(templates)
+            context = hashlib.sha256(json.dumps(metadata, sort_keys=True).encode()).hexdigest()
             tasks = [asyncio.create_task(defend_query(index, defend, session)) for index, defend in enumerate(defends)]
             try:
                 await asyncio.gather(*tasks)
@@ -508,6 +604,7 @@ class CounterattackService:
                 if (not identity and isinstance(error, RecommendationError)
                         and str(error).startswith(('模拟连接', '模拟协议'))):
                     self._unknown_contexts.pop(unknown_key, None)
+                    self._templates.clear()
                 for task in tasks:
                     task.cancel()
                 await asyncio.gather(*tasks, return_exceptions=True)

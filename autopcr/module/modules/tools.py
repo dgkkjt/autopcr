@@ -505,7 +505,7 @@ class Arena(Module):
     async def get_defend_from_histroy_detail(self, history_detail: Union[VersusResultDetail, GrandArenaHistoryDetailInfo]) -> Union[List[List[int]], List[int]]: ...
 
 
-    async def get_attack_team(self, defen: Union[List[List[int]], List[int]]) -> Union[List[List[ArenaQueryResult]], List[ArenaQueryResult]]: ...
+    async def get_attack_team(self, defen: Union[List[List[int]], List[int]], available_unit=None, account_data=None) -> Union[List[List[ArenaQueryResult]], List[ArenaQueryResult]]: ...
 
     async def get_defend(self, client: pcrclient) -> Union[List[List[int]], List[int]]:
         target_rank: int = self.target_rank()
@@ -569,7 +569,7 @@ class Arena(Module):
         available = frozenset(unit_id for unit_id, unit in client.data.unit.items() if unit.promotion_level >= 7)
 
         defend = await self.get_defend(client)
-        attack = await self.get_attack_team(defend, available)
+        attack = await self.get_attack_team(defend, available, client.data)
 
         defend_str = self.present_defend(defend)
 
@@ -648,10 +648,10 @@ class jjc_back(Arena):
     async def get_defend_from_histroy_detail(self, history_detail: VersusResultDetail) -> List[int]:
         return [unit.id for unit in history_detail.vs_user_arena_deck]
 
-    async def get_attack_team(self, defen: List[int], available_unit=None) -> List[ArenaQueryResult]:
+    async def get_attack_team(self, defen: List[int], available_unit=None, account_data=None) -> List[ArenaQueryResult]:
         from ...util.arena_counterattack import query_counterattack
         available = available_unit if available_unit is not None else getattr(self, 'available_unit', frozenset())
-        return await query_counterattack(self, available, defen, multi=False)
+        return await query_counterattack(self, available, defen, multi=False, account_data=account_data)
 
 
 @description('查询pjjc回刺阵容，并自动设置进攻队伍，对手排名=0则查找对战纪录第一条刺人的，<0则查找对战纪录，-1表示第一条，-2表示第二条，以此类推')
@@ -744,10 +744,10 @@ class pjjc_back(Arena):
         self.save_cache(str(history_detail.vs_user_viewer_id) + ':slots', list(ret.slots))
         return ret
 
-    async def get_attack_team(self, defen: List[List[int]], available_unit=None) -> List[List[ArenaQueryResult]]:
+    async def get_attack_team(self, defen: List[List[int]], available_unit=None, account_data=None) -> List[List[ArenaQueryResult]]:
         from ...util.arena_counterattack import query_counterattack
         available = available_unit if available_unit is not None else getattr(self, 'available_unit', frozenset())
-        return await query_counterattack(self, available, defen, multi=True)
+        return await query_counterattack(self, available, defen, multi=True, account_data=account_data)
 
 
 class ArenaInfo(Module):

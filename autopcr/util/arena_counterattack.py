@@ -5,7 +5,7 @@ import math
 import os
 
 
-async def query_counterattack(task, available, defend, multi=False):
+async def query_counterattack(task, available, defend, multi=False, account_data=None):
     from .arena import instance as pcrdfans
 
     if multi and len(defend) not in (2, 3):
@@ -17,8 +17,11 @@ async def query_counterattack(task, available, defend, multi=False):
     if task.get_config(key) == "mzq":
         try:
             from .arena_mzq import get_attack, get_multi_attack
-            task._log("查询来源：mzq（满练模拟，10次至少8胜，实际效果受账号练度影响）")
-            result = await (get_multi_attack(available, defend) if multi else get_attack(available, defend))
+            from .arena_training import build_snapshot
+            snapshot = build_snapshot(account_data, available)
+            task._log("查询来源：mzq（我方账号练度模拟，保留自动五星；敌方满练；EX沿用模拟器配置；10次至少8胜）")
+            result = await (get_multi_attack(available, defend, snapshot) if multi
+                            else get_attack(available, defend, snapshot))
             if result:
                 return result
             reason = "没有完整可用方案"
@@ -26,8 +29,9 @@ async def query_counterattack(task, available, defend, multi=False):
             raise
         except Exception as error:
             # Only our explicitly sanitized errors are suitable for user logs.
-            reason = (str(error) if type(error).__module__ == 'autopcr.util.arena_mzq_service'
-                      and type(error).__name__ == 'RecommendationError' else type(error).__name__)
+            reason = (str(error) if (type(error).__module__, type(error).__name__) in (
+                ('autopcr.util.arena_mzq_service', 'RecommendationError'),
+                ('autopcr.util.arena_training', 'TrainingError')) else type(error).__name__)
         task._log(f"mzq未返回可用方案（{reason}），降级使用PCRDFans")
     task._log("查询来源：PCRDFans")
     try:

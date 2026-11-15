@@ -7,6 +7,7 @@ from ..model.common import ChangeRarityUnit, DeckListData
 from ..model.enums import ePartyType
 from ..model.requests import LoadIndexRequest
 from .arena_support import valid_team
+from .arena_training import needs_five_star_change
 
 
 class DeckReadbackError(Exception):
@@ -107,6 +108,13 @@ async def update_counterattack_deck(task, client, recommendations, pjjc=False):
     from ..db.database import db
 
     groups = recommendations if pjjc else [recommendations]
+    snapshots = [getattr(result, '_training_snapshot', None) for result in groups]
+    if any(snapshot is not None for snapshot in snapshots):
+        if (any(snapshot is None for snapshot in snapshots)
+                or len({snapshot.fingerprint for snapshot in snapshots}) != 1
+                or not snapshots[0].matches(client.data, db)):
+            task._warn("编队预检失败：账号练度已与模拟快照不同或快照不完整，请重新查询；仅展示推荐")
+            return
     teams = [[unit.id for unit in result.atk] for result in groups]
     available = frozenset(uid for uid, unit in client.data.unit.items() if unit.promotion_level >= 7)
     if (len(teams) not in ((2, 3) if pjjc else (1,))
@@ -134,8 +142,7 @@ async def update_counterattack_deck(task, client, recommendations, pjjc=False):
 
     # Only recommended teams get automatic star changes; filler retains its stars.
     new_ids = [unit.id for result in groups for unit in result.atk]
-    changes = [uid for uid in new_ids if client.data.unit[uid].unit_rarity == 5
-               and client.data.unit[uid].battle_rarity != 0]
+    changes = [uid for uid in new_ids if needs_five_star_change(client.data.unit[uid])]
     if changes:
         names = "|".join(db.get_unit_name(uid) for uid in changes)
         try:
