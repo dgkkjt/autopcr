@@ -37,7 +37,9 @@ def needs_five_star_change(unit):
 
 def effective_rarity(unit):
     owned = integer(unit.unit_rarity, '持有星级', 1, 6)
-    battle = integer(unit.battle_rarity, '战斗星级', 0, 6)
+    # UnitData may omit an unset battle_rarity. The existing attribute/power
+    # calculation also uses owned rarity for None/0; no override is active.
+    battle = integer(0 if unit.battle_rarity is None else unit.battle_rarity, '战斗星级', 0, 6)
     if battle > owned:
         raise TrainingError('账号练度：战斗星级高于持有星级')
     return 5 if owned == 5 else (battle or owned)

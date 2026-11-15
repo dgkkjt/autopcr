@@ -15,9 +15,12 @@ async def query_counterattack(task, available, defend, multi=False, account_data
     key = "opponent_pjjc_query_source" if multi else "opponent_jjc_query_source"
     available = frozenset(available)
     if task.get_config(key) == "mzq":
+        safe_errors = ()
         try:
+            from .arena_training import build_snapshot, TrainingError
+            from .arena_mzq_service import RecommendationError
+            safe_errors = (TrainingError, RecommendationError)
             from .arena_mzq import get_attack, get_multi_attack
-            from .arena_training import build_snapshot
             snapshot = build_snapshot(account_data, available)
             task._log("查询来源：mzq（我方账号练度模拟，保留自动五星；敌方满练；EX沿用模拟器配置；10次至少8胜）")
             result = await (get_multi_attack(available, defend, snapshot) if multi
@@ -29,9 +32,9 @@ async def query_counterattack(task, available, defend, multi=False, account_data
             raise
         except Exception as error:
             # Only our explicitly sanitized errors are suitable for user logs.
-            reason = (str(error) if (type(error).__module__, type(error).__name__) in (
-                ('autopcr.util.arena_mzq_service', 'RecommendationError'),
-                ('autopcr.util.arena_training', 'TrainingError')) else type(error).__name__)
+            # Hoshino imports this package with a plugin prefix. Identify our
+            # sanitized exceptions by class, independently of that package name.
+            reason = str(error) if isinstance(error, safe_errors) else type(error).__name__
         task._log(f"mzq未返回可用方案（{reason}），降级使用PCRDFans")
     task._log("查询来源：PCRDFans")
     try:
