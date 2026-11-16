@@ -474,7 +474,7 @@ class CounterattackService:
         defends = [tuple(sorted(defend)) for defend in defends]
         if not 1 <= len(defends) <= 3 or any(not valid_team(d, set(d)) for d in defends):
             raise RecommendationError("防守输入：需要完整的5人不同角色队伍")
-        seconds = configured_seconds("AUTOPCR_ARENA_MZQ_TIMEOUT", 60)
+        seconds = configured_seconds("AUTOPCR_ARENA_MZQ_TIMEOUT", 120)
         state = RequestState(time.monotonic() + seconds, Event())
         collected = [[] for _ in defends]
         cached_attacks = [set() for _ in defends]
